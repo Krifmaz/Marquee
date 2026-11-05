@@ -327,7 +327,9 @@ async fn a_request_goes_from_asked_to_approved_to_available() {
     assert_shape(&main, &real("user_2_settings_main"), "settings/main");
     let (_, perms) = call(&app, "GET", &format!("/user/{sam}/settings/permissions"), None, None).await;
     assert_eq!(perms, real("user_2_settings_permissions"));
-    assert_eq!(call(&app, "GET", "/user", Some(sam), None).await.0, StatusCode::FORBIDDEN, "only admins list accounts");
+    let (s, others) = call(&app, "GET", "/user", Some(sam), None).await;
+    assert_eq!(s, StatusCode::OK, "like Seerr, everybody signed in may list accounts");
+    assert!(others["results"][0].get("email").is_none(), "but without their mail addresses");
 
     // the movie's file arrives: the request is done
     kit_server_core::Db::execute(&st.db, "UPDATE movies SET movie_file_id=1 WHERE tmdb_id=603", vec![]).unwrap();
@@ -558,6 +560,58 @@ async fn discover_rows_and_unknown_paths_answer_like_seerr() {
     let (s, e) = call(&app, "GET", "/no/such/thing", None, None).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
     assert!(e["message"].as_str().unwrap().contains("/api/v1/no/such/thing"), "JSON, not the web app's page: {e}");
+}
+
+#[tokio::test]
+async fn user_routes_follow_seerr_routes_user_index_ts() {
+    let (app, _) = server("users").await;
+    let sam = id_of(&app, "sam").await;
+    let vic = id_of(&app, "vic").await;
+
+    let (_, page) = call(&app, "GET", &format!("/user?includeIds={sam},{vic}&sort=displayname"), None, None).await;
+    let names: Vec<&str> = page["results"].as_array().unwrap().iter().map(|u| u["username"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["sam", "vic"]);
+    let (_, found) = call(&app, "GET", "/user?q=SAM@EXAMPLE", None, None).await;
+    assert_eq!(found["pageInfo"]["results"], 1, "search reads mail addresses too");
+    let (_, roles) = call(&app, "GET", "/user?sort=role", None, None).await;
+    assert_eq!(roles["results"][0]["username"], "owner", "the owner first");
+    let (s, e) = call(&app, "GET", "/user/999", None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("User not found.")));
+    let (_, own) = call(&app, "GET", &format!("/user/{sam}"), Some(sam), None).await;
+    assert_eq!(own["email"], "sam@example.com", "your own mail address");
+
+    let (s, e) = call(&app, "GET", "/user/1/quota", Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to view this user's request limits.")));
+    let (s, e) = call(&app, "GET", "/user/1/requests", Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to view this user's requests.")));
+    let (s, e) = call(&app, "GET", &format!("/user/{sam}/watch_data"), Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Tautulli API not configured.")));
+    let (s, w) = call(&app, "GET", &format!("/user/{sam}/watchlist"), Some(sam), None).await;
+    assert_eq!((s, w["totalResults"].as_i64()), (StatusCode::OK, Some(0)));
+
+    // making, changing and removing accounts
+    let (s, _) = call(&app, "POST", "/user", Some(sam), Some(json!({ "email": "kim@example.com", "password": "kim-password-1" }))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, e) = call(&app, "POST", "/user", None, Some(json!({ "email": "kim@example.com" }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::INTERNAL_SERVER_ERROR, Some("Email notifications must be enabled")));
+    let (s, kim) =
+        call(&app, "POST", "/user", None, Some(json!({ "email": "kim@example.com", "username": "kim", "password": "kim-password-1" })))
+            .await;
+    assert_eq!(s, StatusCode::CREATED, "{kim}");
+    assert_eq!(kim["permissions"], 32, "the default role: can request");
+    let (s, e) = call(&app, "POST", "/user", None, Some(json!({ "email": "KIM@example.com", "password": "kim-password-1" }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::CONFLICT, Some("User already exists with submitted email.")));
+    let kid = kim["id"].as_i64().unwrap();
+    let (s, changed) =
+        call(&app, "PUT", &format!("/user/{kid}"), None, Some(json!({ "username": "kimberly", "permissions": 32 | 256 }))).await;
+    assert_eq!(s, StatusCode::OK, "{changed}");
+    assert_eq!((changed["username"].as_str(), changed["permissions"].as_i64()), (Some("kimberly"), Some(32 | 256)));
+    let (_, bulk) = call(&app, "PUT", "/user", None, Some(json!({ "ids": [kid, vic], "permissions": 32 }))).await;
+    assert_eq!(bulk.as_array().unwrap().len(), 2);
+    assert_eq!(call(&app, "DELETE", "/user/1", None, None).await.0, StatusCode::METHOD_NOT_ALLOWED, "never the owner");
+    let (s, gone) = call(&app, "DELETE", &format!("/user/{kid}"), None, None).await;
+    assert_eq!((s, gone["username"].as_str()), (StatusCode::OK, Some("kimberly")));
+    assert_eq!(call(&app, "GET", &format!("/user/{kid}"), None, None).await.0, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
