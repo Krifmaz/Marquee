@@ -23,6 +23,8 @@ pub struct App {
     pub languages: &'static str,
     /// its Torznab and Newznab indexer templates
     pub indexer_schema: &'static str,
+    /// its queue records (downloads on their way, in its shape)
+    pub queue: fn(&AppState) -> Vec<Value>,
 }
 
 /// A database failure as an answer.
@@ -40,9 +42,9 @@ pub fn routes(app: &'static App) -> Router<AppState> {
     Router::new()
         .route("/health", get(empty_list))
         .route("/diskspace", get(move |State(st): State<AppState>| async move { diskspace(&st, app) }))
-        .route("/queue", get(|Query(q): Query<Paging>| async move { Json(paged(&q, "timeleft", "descending", vec![])) }))
-        .route("/queue/status", get(queue_status))
-        .route("/queue/details", get(empty_list))
+        .route("/queue", get(move |State(st): State<AppState>, Query(q): Query<Paging>| async move { Json(paged(&q, "timeleft", "descending", (app.queue)(&st))) }))
+        .route("/queue/status", get(move |State(st): State<AppState>| async move { queue_status(&st, app) }))
+        .route("/queue/details", get(move |State(st): State<AppState>| async move { Json(json!((app.queue)(&st))) }))
         .route("/history", get(|Query(q): Query<Paging>| async move { Json(paged(&q, "date", "descending", vec![])) }))
         .route("/customformat", get(empty_list))
         .route("/notification", get(empty_list))
@@ -135,11 +137,12 @@ fn saved(status: u16, r: Result<std::result::Result<Value, Response>>) -> Respon
     }
 }
 
-/// `GET queue/status`: downloads in progress (Lantern's, from the downloads step on).
-async fn queue_status() -> Json<Value> {
-    Json(
-        json!({ "totalCount": 0, "count": 0, "unknownCount": 0, "errors": false, "warnings": false, "unknownErrors": false, "unknownWarnings": false }),
-    )
+/// `GET queue/status`: how many downloads are on their way, and whether any has a problem.
+fn queue_status(st: &AppState, app: &App) -> Json<Value> {
+    let q = (app.queue)(st);
+    let has = |s: &str| q.iter().any(|r| r["trackedDownloadStatus"] == s);
+    Json(json!({ "totalCount": q.len(), "count": q.len(), "unknownCount": 0, "errors": has("error"), "warnings": has("warning"),
+        "unknownErrors": false, "unknownWarnings": false }))
 }
 
 /// `PUT qualitydefinition/update`: several definitions at once.

@@ -42,6 +42,7 @@ pub static APP_INFO: App = App {
     root_kinds: &["movie"],
     languages: arr::LANGUAGES,
     indexer_schema: include_str!("../data/radarr/indexer_schema.json"),
+    queue: crate::downloads::radarr_queue,
 };
 
 /// The routes, nested under `/radarr`.
@@ -326,6 +327,9 @@ async fn movie_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response
     match movies::add(&st.db, &info, &o) {
         Ok(m) => {
             tracing::info!("Added the movie {} ({}) through the Radarr API", m.info.title, m.info.year);
+            if b["addOptions"]["searchForMovie"].as_bool() == Some(true) {
+                crate::downloads::spawn_search(&st, crate::downloads::Search::Movies(vec![m.id]));
+            }
             with_status(201, resource(&m, Utc::now()))
         }
         Err(e) => fail(e),
@@ -495,6 +499,13 @@ async fn command_add(State(st): State<AppState>, Json(mut b): Json<Value>) -> Re
         let ids = tag_ids(&b["movieIds"]);
         let st2 = st.clone();
         tokio::spawn(async move { refresh(&st2, &ids).await });
+    }
+    match name.as_str() {
+        "MoviesSearch" => crate::downloads::spawn_search(&st, crate::downloads::Search::Movies(tag_ids(&b["movieIds"]))),
+        "MissingMoviesSearch" | "CutoffUnmetMoviesSearch" => {
+            crate::downloads::spawn_search(&st, crate::downloads::Search::Missing { movies: true, tv: false })
+        }
+        _ => {}
     }
     match arr::record_command(&st.db, APP, &name, &b) {
         Ok(v) => with_status(201, v),

@@ -54,6 +54,10 @@ General) and these addresses:
 | Prowlarr (Apps → Radarr), Seerr, Homepage, nzb360, LunaSea | `http://<marquee>:8080/radarr` |
 | Prowlarr (Apps → Sonarr), Seerr, Homepage, nzb360, LunaSea | `http://<marquee>:8080/sonarr` |
 
+Downloads go through Lantern. In Settings → Connections, add Lantern's address and API key. Also add this server's
+address so Lantern can tell Marquee when a download is done. Mount the downloads folder and the media folders at
+the same paths in both containers, on one disk, so finished files are hardlinked and not copied.
+
 Movie and TV information comes from TMDB: add a free API key in Settings → Connections.
 
 ## Checks

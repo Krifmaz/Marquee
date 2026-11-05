@@ -23,10 +23,15 @@ pub mod arr;
 pub mod arr_common;
 pub mod auth;
 pub mod checks;
+pub mod decide;
+pub mod downloads;
+pub mod import;
+pub mod lantern;
 pub mod library;
 pub mod movies;
 pub mod quality;
 pub mod radarr;
+pub mod release;
 pub mod roles;
 pub mod series;
 pub mod sonarr;
@@ -130,6 +135,7 @@ impl AppState {
         movies::migrate(&db)?;
         series::migrate(&db)?;
         arr::migrate(&db)?;
+        downloads::migrate(&db)?;
         let kit = |e: kit_server_core::Error| anyhow::anyhow!("The kit's tables can't be made: {}", e.detail);
         let prefs = SqlitePrefs::new(db.clone()).map_err(kit)?;
         let reports = kit_server_bugreports::SqliteReports::new(db.clone()).map_err(kit)?;
@@ -255,6 +261,7 @@ pub fn app(st: AppState) -> Router {
     let spa = ServeDir::new(&st.static_dir).precompressed_br().precompressed_gzip().fallback(index);
     let spa = tower_http::set_header::SetResponseHeader::if_not_present(spa, header::VARY, HeaderValue::from_static("accept-encoding"));
     kit_server_notices::spawn_rechecks(st.clone());
+    downloads::spawn(st.clone());
     Router::new()
         .merge(kit_server_health::router(kit_server_health::Health::new(VERSION, web)))
         .merge(kit_server_changelog::router())
@@ -271,6 +278,7 @@ pub fn app(st: AppState) -> Router {
         .merge(quality::router())
         .merge(radarr::router(st.clone()))
         .merge(series::router())
+        .merge(downloads::router())
         .merge(sonarr::router(st.clone()))
         .with_state(st)
         .fallback_service(spa)

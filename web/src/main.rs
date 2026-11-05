@@ -6,6 +6,7 @@
 //! | after signing in | the What's new popup, once per release |
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
 //! | `#/movies` | every movie as a poster, TMDB search and Add (admins) |
+//! | `#/activity` | every download through Lantern, how far along, why one is stuck; Stop (admins) |
 //! | `#/tv` | every series as a poster with its missing episodes, TMDB search and Add (admins) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
@@ -13,6 +14,7 @@
 //! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`].
 
 mod accounts;
+mod activity;
 mod movies;
 mod pages;
 mod tv;
@@ -180,6 +182,7 @@ fn Shell(me: Value) -> impl IntoView {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
             "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
             "/tv" => view! { <tv::Tv admin=admin/> }.into_any(),
+            "/activity" => view! { <activity::Activity admin=admin/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
             _ => view! { <pages::Home/> }.into_any(),
         }
@@ -192,6 +195,7 @@ fn Shell(me: Value) -> impl IntoView {
                     <NavLink href="/" label="Home" route=route/>
                     <NavLink href="/movies" label="Movies" route=route/>
                     <NavLink href="/tv" label="TV" route=route/>
+                    <NavLink href="/activity" label="Activity" route=route/>
                 </nav>
                 <nav class="nav nav-under">
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>

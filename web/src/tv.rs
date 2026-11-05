@@ -1,6 +1,6 @@
 //! `#/tv`: every series as a poster with where it stands, a search that finds series on TMDB, and Add (admins).
 
-use crate::movies::{encode, poster, s};
+use crate::movies::{encode, poster, s, search_button};
 use kit_leptos::api;
 use kit_leptos::toasts::toast;
 use leptos::prelude::*;
@@ -96,7 +96,12 @@ pub fn Tv(admin: bool) -> impl IntoView {
             } else {
                 view! {
                     <div class="posters" id="series">
-                        {shows.iter().map(|m| poster(m, standing(m), None)).collect_view()}
+                        {shows.iter().map(|m| {
+                            let id = m.get("id").and_then(Value::as_i64).unwrap_or(0);
+                            let (words, kind) = standing(m);
+                            let action = (admin && kind == "warn").then(|| search_button(format!("/series/{id}/search"), s(m, "title")));
+                            poster(m, (words, kind), action)
+                        }).collect_view()}
                     </div>
                 }
                 .into_any()

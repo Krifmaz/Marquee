@@ -55,7 +55,7 @@ env = "MARQUEE_LANTERN_URL"
 default = ""
 group = "lantern"
 label = "Lantern address"
-help = "Lantern's web address as this server reaches it, for example http://lantern:8080."
+help = "Lantern's web address as this server reaches it, for example http://lantern:9696."
 type = "text"
 
 [keys.lantern_api_key]
@@ -66,6 +66,14 @@ group = "lantern"
 label = "Lantern API key"
 help = "Lantern → Settings → API key."
 type = "password"
+
+[keys.marquee_url]
+env = "MARQUEE_URL"
+default = ""
+group = "lantern"
+label = "This server's address for Lantern"
+help = "How Lantern reaches Marquee, for example http://marquee:8080. With it, Lantern says at once when a download is done; without it, Marquee asks every minute."
+type = "text"
 
 [groups.metadata]
 section = "connections"
