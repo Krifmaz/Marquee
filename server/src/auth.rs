@@ -268,7 +268,7 @@ pub struct AppDevice {
 }
 
 /// The address a request came from, for the sign-in limit: the first `X-Forwarded-For` hop, else "local".
-fn client_ip(headers: &HeaderMap) -> String {
+pub fn client_ip(headers: &HeaderMap) -> String {
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -302,13 +302,21 @@ async fn login(State(st): State<AppState>, headers: HeaderMap, jar: CookieJar, J
     if user.b("disabled") {
         return Err(err(403, "This account is disabled"));
     }
-    if b.app.is_some() {
+    // a Jellyfin user still waiting for this account's password takes it now
+    crate::media_servers::account_sync::signed_in(&st, user.i("id"), &b.password).await;
+    start_session(&st, &headers, jar, &user, b.app.is_some()).await
+}
+
+/// Signs the account `user` in: an app token (`app`) or the session cookie, and the account as the web app gets
+/// it. Signing in with a password, with Plex or Jellyfin, and after sign-up all end here.
+pub async fn start_session(st: &AppState, headers: &HeaderMap, jar: CookieJar, user: &Row, app: bool) -> Result<(CookieJar, Json<Value>)> {
+    if app {
         let token = random_token(32);
         st.db.execute(
             "INSERT INTO sessions (token, user_id, kind, created_at, expires_at) VALUES (?,?,'app',?,?)",
             p![app_token_key(&token), user.i("id"), now(), now() + APP_SESSION_SECS],
         )?;
-        return Ok((jar, Json(json!({ "user": public_user(&st, &user).await?, "token": token }))));
+        return Ok((jar, Json(json!({ "user": public_user(st, user).await?, "token": token }))));
     }
     let days = st.settings.int("session_days").max(1);
     let max_age = days * 86400;
@@ -325,7 +333,7 @@ async fn login(State(st): State<AppState>, headers: HeaderMap, jar: CookieJar, J
         .secure(https)
         .max_age(cookie::time::Duration::seconds(max_age))
         .build();
-    Ok((jar.add(cookie), Json(public_user(&st, &user).await?)))
+    Ok((jar.add(cookie), Json(public_user(st, user).await?)))
 }
 
 /// `POST /api/auth/logout`: end this session (the app token, or the cookie's).

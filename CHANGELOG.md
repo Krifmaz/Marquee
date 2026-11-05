@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Plex and Jellyfin, and everything jfa-go did: Settings → Media servers (Jellyfin, Plex, sign-up and mail), Media access (whether each server answers, Scan now, each account's Jellyfin user and Plex share with its libraries and end date, linking existing users), Invites (one-time or multi-use links with an end date, role, servers and libraries; sent by mail), a public sign-up page, password reset by mail, accounts that end on a date with a reminder first, sign-in with Plex or Jellyfin, and "available" from either server. Accounts are made only in Marquee; Jellyfin and Plex follow every change (made, password, turned off, removed).
+
 ### Changed
 - First release, v0.1.0: the release hold is lifted, so every merge to main is a release from now on.
 

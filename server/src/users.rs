@@ -9,7 +9,15 @@
 //! PATCH  /api/users/{id}   {email?, password?, current_password?, role?, disabled?, quotas…} → the account
 //!                          (admins change anything but the owner's role; an account itself only its email and
 //!                          password, with its current password)
-//! DELETE /api/users/{id}   → {ok}: the account and its sessions removed (admins; never the owner or yourself)
+//! DELETE /api/users/{id}   → {ok, media_errors}: the account, its sessions, its Jellyfin user and Plex share removed
+//!                          (admins; never the owner or yourself)
+//! ```
+//!
+//! Jellyfin and Plex follow every change ([`crate::media_servers::account_sync`]): a new account with `media`
+//! gets its Jellyfin user and Plex share at once, a new password goes to Jellyfin, turning an account off turns
+//! it off there too. `media_errors` lists what a media server didn't take, in words.
+//!
+//! ```text
 //! ```
 //!
 //! Quotas: `movie_quota_limit` movies in `movie_quota_days` days, `tv_quota_limit` seasons in `tv_quota_days`
@@ -76,6 +84,7 @@ pub fn public(u: &Row) -> Value {
         "tv_quota_days": u.i("tv_quota_days"),
         "auto_approve_movies": u.b("auto_approve_movies"),
         "auto_approve_tv": u.b("auto_approve_tv"),
+        "expires_at": crate::media_servers::expiry::expires_at(u),
     })
 }
 
@@ -162,6 +171,11 @@ pub struct NewUser {
     /// quotas and auto-approve
     #[serde(flatten)]
     pub limits: Limits,
+    /// Jellyfin and Plex access (made at once, with this password)
+    #[serde(default)]
+    pub media: Option<crate::media_servers::account_sync::Choice>,
+    /// days until the account ends (none: never)
+    pub expires_in_days: Option<i64>,
 }
 
 /// Sets `cols` on the account `id`.
@@ -173,24 +187,49 @@ fn set_columns(db: &SqliteDb, id: i64, cols: Vec<(&'static str, Value)>) -> Resu
     Ok(())
 }
 
-/// `POST /api/users`: a new account; the role and limits not given come from the "New accounts" settings.
-async fn create(State(st): State<AppState>, me: Me, Json(b): Json<NewUser>) -> Result<Json<Value>> {
-    me.admin()?;
-    let role = match b.role.as_deref() {
-        None | Some("") => Role::assignable(&st.settings.str("default_role")).filter(|r| !r.is_admin()).unwrap_or(Role::Requester),
-        Some(r) => Role::assignable(r).ok_or_else(|| err(400, "The role must be admin, requester or viewer"))?,
-    };
-    let mut limits = b.limits;
+/// Makes an account with `role` (the "New accounts" defaults for the limits `limits` doesn't give) and its
+/// mail address; its id. Admins, invites and Plex or Jellyfin sign-in all make accounts through it.
+pub fn create_account(st: &AppState, username: &str, password: &str, email: &str, role: Role, limits: Limits) -> Result<i64> {
+    let mut limits = limits;
     limits.movie_quota_limit = limits.movie_quota_limit.or(Some(st.settings.int("default_movie_quota")));
     limits.tv_quota_limit = limits.tv_quota_limit.or(Some(st.settings.int("default_tv_quota")));
     let cols = limits.columns()?;
-    let id = create_user(&st.db, b.username.trim(), &b.password, role.as_str())?;
+    let id = create_user(&st.db, username.trim(), password, role.as_str())?;
     set_columns(&st.db, id, cols)?;
-    if !b.email.trim().is_empty() {
-        st.db.execute("UPDATE users SET email=? WHERE id=?", p![b.email.trim(), id])?;
+    if !email.trim().is_empty() {
+        st.db.execute("UPDATE users SET email=? WHERE id=?", p![email.trim(), id])?;
+    }
+    Ok(id)
+}
+
+/// The role a new account gets when none is chosen: the `default_role` setting (never admin).
+pub fn default_role(st: &AppState) -> Role {
+    Role::assignable(&st.settings.str("default_role")).filter(|r| !r.is_admin()).unwrap_or(Role::Requester)
+}
+
+/// `POST /api/users`: a new account; the role and limits not given come from the "New accounts" settings. With
+/// `media`, its Jellyfin user and Plex share are made at once (`media_errors` says what didn't work).
+async fn create(State(st): State<AppState>, me: Me, Json(b): Json<NewUser>) -> Result<Json<Value>> {
+    me.admin()?;
+    let role = match b.role.as_deref() {
+        None | Some("") => default_role(&st),
+        Some(r) => Role::assignable(r).ok_or_else(|| err(400, "The role must be admin, requester or viewer"))?,
+    };
+    if let Some(d) = b.expires_in_days {
+        if !(1..=3650).contains(&d) {
+            return Err(err(400, "The number of days must be 1 to 3650"));
+        }
+    }
+    let id = create_account(&st, &b.username, &b.password, &b.email, role, b.limits)?;
+    if let Some(d) = b.expires_in_days {
+        crate::media_servers::expiry::set_expiry(&st.db, id, Some(crate::auth::now() + d as f64 * 86400.0))?;
     }
     tracing::info!("{} made the account '{}' ({})", me.account.username, b.username.trim(), role.as_str());
-    Ok(Json(public(&find(&st.db, id)?)))
+    let mut out = public(&find(&st.db, id)?);
+    if let Some(media) = &b.media {
+        out["media_errors"] = json!(crate::media_servers::account_sync::apply(&st, id, media, Some(&b.password), true).await?);
+    }
+    Ok(Json(out))
 }
 
 /// `GET /api/users/{id}`: one account, for an admin or the account itself.
@@ -224,6 +263,7 @@ async fn update(State(st): State<AppState>, me: Me, Path(id): Path<i64>, Json(b)
     let user = find(&st.db, id)?;
     let own = me.account.id == id;
     let is_owner = Role::parse(&user.s("role")) == Role::Owner;
+    let mut resync = false;
     let admin_only = b.role.is_some() || b.disabled.is_some() || !b.limits.columns()?.is_empty();
     if !own || admin_only {
         me.admin()?;
@@ -237,12 +277,14 @@ async fn update(State(st): State<AppState>, me: Me, Path(id): Path<i64>, Json(b)
             return Err(err(400, "You can't take away your own admin rights; ask another admin"));
         }
         st.db.execute("UPDATE users SET role=? WHERE id=?", p![role.as_str(), id])?;
+        resync = true;
     }
     if let Some(d) = b.disabled {
         if is_owner || own {
             return Err(err(400, "The owner and your own account can't be turned off"));
         }
         st.db.execute("UPDATE users SET disabled=? WHERE id=?", p![d as i64, id])?;
+        resync = true;
         if d {
             st.db.execute("DELETE FROM sessions WHERE user_id=?", p![id])?;
         }
@@ -265,7 +307,15 @@ async fn update(State(st): State<AppState>, me: Me, Path(id): Path<i64>, Json(b)
         st.db.execute("UPDATE users SET email=? WHERE id=?", p![e.trim(), id])?;
     }
     set_columns(&st.db, id, b.limits.columns()?)?;
-    Ok(Json(public(&find(&st.db, id)?)))
+    // Jellyfin and Plex follow: the new password, turned off or on, the role's libraries
+    let errors = match b.password.as_deref() {
+        Some(pw) => crate::media_servers::account_sync::sync(&st, id, Some(pw), false).await,
+        None if resync => crate::media_servers::account_sync::sync(&st, id, None, false).await,
+        None => vec![],
+    };
+    let mut out = public(&find(&st.db, id)?);
+    out["media_errors"] = json!(errors);
+    Ok(Json(out))
 }
 
 /// `DELETE /api/users/{id}`: remove an account and its sessions.
@@ -278,8 +328,10 @@ async fn remove(State(st): State<AppState>, me: Me, Path(id): Path<i64>) -> Resu
     if me.account.id == id {
         return Err(err(400, "You can't remove your own account; ask another admin"));
     }
+    // removed everywhere: its Jellyfin user and Plex share go first
+    let errors = crate::media_servers::account_sync::remove_everywhere(&st, id).await;
     st.db.execute("DELETE FROM sessions WHERE user_id=?", p![id])?;
     st.db.execute("DELETE FROM users WHERE id=?", p![id])?;
     tracing::info!("{} removed the account '{}'", me.account.username, user.s("username"));
-    Ok(Json(json!({ "ok": true })))
+    Ok(Json(json!({ "ok": true, "media_errors": errors })))
 }
