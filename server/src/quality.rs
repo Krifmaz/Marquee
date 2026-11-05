@@ -1,9 +1,10 @@
-//! Qualities and quality profiles, kept per media kind (`movie` now; `tv` and `anime` later): which qualities
+//! Qualities and quality profiles, kept per media kind (`movie` and `tv`; `anime` later): which qualities
 //! a profile takes, in what order, and where it stops upgrading. A profile is kept in the shape the Radarr and
 //! Sonarr APIs use (`name`, `upgradeAllowed`, `cutoff`, `items`, `formatItems`…), so those APIs hand it over
 //! as it is.
 //!
-//! The first start fills in the standard quality list and starter profiles from `data/radarr/` (the TRaSH
+//! The first start fills in the standard quality lists and starter profiles from `data/radarr/` and
+//! `data/sonarr/` (the TRaSH
 //! profiles replace them as the default in a later step).
 //!
 //! ```text
@@ -24,6 +25,12 @@ const MOVIE_DEFINITIONS: &str = include_str!("../data/radarr/qualitydefinition.j
 
 /// The starter movie profiles.
 const MOVIE_PROFILES: &str = include_str!("../data/radarr/qualityprofile.json");
+
+/// Sonarr's standard quality list, the TV defaults.
+const TV_DEFINITIONS: &str = include_str!("../data/sonarr/qualitydefinition.json");
+
+/// The starter TV profiles.
+const TV_PROFILES: &str = include_str!("../data/sonarr/qualityprofile.json");
 
 /// The profile Marquee picks for a new movie when none is given, if it exists.
 const PREFERRED_MOVIE_PROFILE: &str = "HD-1080p";
@@ -48,7 +55,8 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
         );",
     )
     .map_err(e)?;
-    seed(db, "movie", MOVIE_DEFINITIONS, MOVIE_PROFILES).map_err(e)
+    seed(db, "movie", MOVIE_DEFINITIONS, MOVIE_PROFILES).map_err(e)?;
+    seed(db, "tv", TV_DEFINITIONS, TV_PROFILES).map_err(e)
 }
 
 /// Fills in `kind`'s definitions and profiles when it has none yet.
@@ -102,7 +110,7 @@ pub fn profile(db: &SqliteDb, id: i64) -> Result<Option<Value>> {
     Ok(db.one("SELECT * FROM quality_profiles WHERE id=?", p![id])?.map(|r| with_id(&r.s("body"), r.i("id"))))
 }
 
-/// The profile a new item of `kind` gets: `HD-1080p` for movies when there is one, else the first.
+/// The profile a new item of `kind` gets: `HD-1080p` when there is one, else the first.
 pub fn default_profile(db: &SqliteDb, kind: &str) -> Result<i64> {
     if let Some(r) = db.one("SELECT id FROM quality_profiles WHERE kind=? AND name=?", p![kind, PREFERRED_MOVIE_PROFILE])? {
         return Ok(r.i("id"));
@@ -153,6 +161,9 @@ pub fn delete_profile(db: &SqliteDb, id: i64) -> Result<()> {
     }
     if db.one("SELECT id FROM movies WHERE quality_profile_id=? LIMIT 1", p![id])?.is_some() {
         return Err(err(400, "Movies still use this quality profile. Give them another one first."));
+    }
+    if db.one("SELECT id FROM series WHERE quality_profile_id=? LIMIT 1", p![id])?.is_some() {
+        return Err(err(400, "Series still use this quality profile. Give them another one first."));
     }
     db.execute("DELETE FROM quality_profiles WHERE id=?", p![id])?;
     Ok(())

@@ -16,6 +16,7 @@
 //! against.
 
 use crate::arr::{self, not_found, paged, validation, with_status, Paging};
+use crate::arr_common::{fail, App};
 use crate::movies::{self, iso_day, poster_url, AddOptions, Movie};
 use crate::tmdb::MovieInfo;
 use crate::AppState;
@@ -24,7 +25,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use chrono::{DateTime, Duration, Utc};
-use kit_server_core::{Result, RowExt};
+use kit_server_core::Result;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
@@ -34,12 +35,19 @@ pub const COMPAT_VERSION: &str = "6.4.4.10685";
 /// The app name in commands and indexers.
 const APP: &str = "radarr";
 
+/// What the shared routes need to know about Radarr.
+pub static APP_INFO: App = App {
+    name: APP,
+    profile_kind: "movie",
+    root_kinds: &["movie"],
+    languages: arr::LANGUAGES,
+    indexer_schema: include_str!("../data/radarr/indexer_schema.json"),
+};
+
 /// The routes, nested under `/radarr`.
 pub fn router(st: AppState) -> Router<AppState> {
     let v3 = Router::new()
         .route("/system/status", get(status))
-        .route("/health", get(empty_list))
-        .route("/diskspace", get(diskspace))
         .route("/movie", get(movie_list).post(movie_add))
         .route("/movie/editor", put(movie_editor))
         .route("/movie/lookup", get(lookup_term))
@@ -48,56 +56,21 @@ pub fn router(st: AppState) -> Router<AppState> {
         .route("/movie/{id}", get(movie_one).put(movie_put).delete(movie_delete))
         .route("/calendar", get(calendar))
         .route("/wanted/missing", get(wanted_missing))
-        .route("/wanted/cutoff", get(wanted_cutoff))
-        .route("/queue", get(queue))
-        .route("/queue/status", get(queue_status))
-        .route("/queue/details", get(empty_list))
-        .route("/history", get(history))
-        .route("/history/movie", get(empty_list))
-        .route("/qualityprofile", get(profiles).post(profile_add))
-        .route("/qualityprofile/{id}", get(profile_one).put(profile_put).delete(profile_delete))
-        .route("/qualitydefinition", get(definitions))
-        .route("/qualitydefinition/update", put(definitions_put))
-        .route("/qualitydefinition/{id}", put(definition_put))
-        .route("/customformat", get(empty_list))
-        .route("/language", get(languages))
-        .route("/tag", get(tags).post(tag_add))
-        .route("/tag/{id}", get(tag_one).put(tag_put).delete(tag_delete))
-        .route("/rootfolder", get(roots).post(root_add))
-        .route("/rootfolder/{id}", axum::routing::delete(root_delete))
-        .route("/indexer", get(indexers).post(indexer_add))
-        .route("/indexer/schema", get(indexer_schema))
-        .route("/indexer/test", post(ok_empty))
-        .route("/indexer/testall", post(empty_list))
-        .route("/indexer/{id}", get(indexer_one).put(indexer_put).delete(indexer_delete))
-        .route("/command", get(command_list).post(command_add))
-        .route("/command/{id}", get(command_one))
+        .route(
+            "/wanted/cutoff",
+            get(|Query(q): Query<Paging>| async move { Json(paged(&q, "movieMetadata.sortTitle", "ascending", vec![])) }),
+        )
+        .route("/history/movie", get(|| async { Json(json!([])) }))
+        .route("/command", post(command_add))
         .route("/config/naming", get(naming))
         .route("/config/ui", get(ui))
-        .route("/notification", get(empty_list))
-        .route("/downloadclient", get(empty_list))
-        .route("/importlist", get(empty_list))
-        .route("/exclusions", get(empty_list));
+        .route("/exclusions", get(|| async { Json(json!([])) }))
+        .merge(crate::arr_common::routes(&APP_INFO));
     Router::new()
         .nest("/radarr/api/v3", v3)
         .route("/radarr/api", get(arr::api_versions))
         .route("/radarr/ping", get(arr::ping))
         .layer(axum::middleware::from_fn_with_state(st, arr::require_key))
-}
-
-/// `[]`.
-async fn empty_list() -> Json<Value> {
-    Json(json!([]))
-}
-
-/// `{}`.
-async fn ok_empty() -> Json<Value> {
-    Json(json!({}))
-}
-
-/// A database failure as an answer.
-fn fail(e: kit_server_core::Error) -> Response {
-    e.into_response()
 }
 
 /// `GET system/status`.
@@ -135,13 +108,6 @@ async fn status(State(st): State<AppState>) -> Json<Value> {
         "packageAuthor": "Marquee",
         "packageUpdateMechanism": "docker",
     }))
-}
-
-/// `GET diskspace`: the disks of the root folders and the data folder.
-async fn diskspace(State(st): State<AppState>) -> Result<Json<Value>> {
-    let mut paths: Vec<String> = crate::library::folders(&st.db, None)?.iter().map(|r| r.s("path")).collect();
-    paths.push(st.data_dir.to_string_lossy().to_string());
-    Ok(Json(json!(arr::disk_space(&paths))))
 }
 
 /// A Radarr `images` list from TMDB paths.
@@ -512,248 +478,6 @@ async fn wanted_missing(State(st): State<AppState>, Query(q): Query<Paging>) -> 
     }
     let records = list.iter().map(|m| resource(m, now)).collect();
     Ok(Json(paged(&q, "movieMetadata.sortTitle", "ascending", records)))
-}
-
-/// `GET wanted/cutoff`: movies whose file is below the profile's cutoff (none until files are imported).
-async fn wanted_cutoff(Query(q): Query<Paging>) -> Json<Value> {
-    Json(paged(&q, "movieMetadata.sortTitle", "ascending", vec![]))
-}
-
-/// `GET queue`: downloads in progress (Lantern's, from the downloads step on).
-async fn queue(Query(q): Query<Paging>) -> Json<Value> {
-    Json(paged(&q, "timeleft", "descending", vec![]))
-}
-
-/// `GET queue/status`.
-async fn queue_status() -> Json<Value> {
-    Json(
-        json!({ "totalCount": 0, "count": 0, "unknownCount": 0, "errors": false, "warnings": false, "unknownErrors": false, "unknownWarnings": false }),
-    )
-}
-
-/// `GET history`.
-async fn history(Query(q): Query<Paging>) -> Json<Value> {
-    Json(paged(&q, "date", "descending", vec![]))
-}
-
-/// `GET qualityprofile`.
-async fn profiles(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(crate::quality::profiles(&st.db, "movie")?)))
-}
-
-/// `GET qualityprofile/{id}`.
-async fn profile_one(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match crate::quality::profile(&st.db, id) {
-        Ok(Some(p)) => Json(p).into_response(),
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `POST qualityprofile`.
-async fn profile_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response {
-    match crate::quality::create_profile(&st.db, "movie", b) {
-        Ok(p) => with_status(201, p),
-        Err(e) => fail(e),
-    }
-}
-
-/// `PUT qualityprofile/{id}`.
-async fn profile_put(State(st): State<AppState>, Path(id): Path<i64>, Json(b): Json<Value>) -> Response {
-    match crate::quality::update_profile(&st.db, id, b) {
-        Ok(p) => with_status(202, p),
-        Err(e) => fail(e),
-    }
-}
-
-/// `DELETE qualityprofile/{id}`.
-async fn profile_delete(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match crate::quality::delete_profile(&st.db, id) {
-        Ok(()) => Json(json!({})).into_response(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `GET qualitydefinition`.
-async fn definitions(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(crate::quality::definitions(&st.db, "movie")?)))
-}
-
-/// `PUT qualitydefinition/{id}`.
-async fn definition_put(State(st): State<AppState>, Path(id): Path<i64>, Json(b): Json<Value>) -> Response {
-    match crate::quality::update_definition(&st.db, id, b) {
-        Ok(v) => with_status(202, v),
-        Err(e) => fail(e),
-    }
-}
-
-/// `PUT qualitydefinition/update`: several definitions at once.
-async fn definitions_put(State(st): State<AppState>, Json(b): Json<Value>) -> Response {
-    let mut out = Vec::new();
-    for d in b.as_array().cloned().unwrap_or_default() {
-        let id = d["id"].as_i64().unwrap_or(0);
-        match crate::quality::update_definition(&st.db, id, d) {
-            Ok(v) => out.push(v),
-            Err(e) => return fail(e),
-        }
-    }
-    with_status(202, json!(out))
-}
-
-/// `GET language`.
-async fn languages() -> Json<Value> {
-    Json(serde_json::from_str(arr::LANGUAGES).unwrap_or_else(|_| json!([])))
-}
-
-/// `GET tag`.
-async fn tags(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(crate::tags::all(&st.db)?)))
-}
-
-/// `GET tag/{id}`.
-async fn tag_one(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match crate::tags::find(&st.db, id) {
-        Ok(Some(t)) => Json(t).into_response(),
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `POST tag`.
-async fn tag_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response {
-    match crate::tags::create(&st.db, b["label"].as_str().unwrap_or("")) {
-        Ok(t) => with_status(201, t),
-        Err(e) => fail(e),
-    }
-}
-
-/// `PUT tag/{id}`.
-async fn tag_put(State(st): State<AppState>, Path(id): Path<i64>, Json(b): Json<Value>) -> Response {
-    match crate::tags::rename(&st.db, id, b["label"].as_str().unwrap_or("")) {
-        Ok(t) => with_status(202, t),
-        Err(e) => fail(e),
-    }
-}
-
-/// `DELETE tag/{id}`.
-async fn tag_delete(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match crate::tags::delete(&st.db, id) {
-        Ok(()) => Json(json!({})).into_response(),
-        Err(e) => fail(e),
-    }
-}
-
-/// A root folder in Radarr's shape.
-fn root_view(r: &kit_server_core::Row) -> Value {
-    let path = r.s("path");
-    let p = std::path::Path::new(&path);
-    json!({ "path": path, "accessible": p.is_dir(), "freeSpace": crate::library::free_space(p), "unmappedFolders": [], "id": r.i("id") })
-}
-
-/// `GET rootfolder`: the movie root folders.
-async fn roots(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(crate::library::folders(&st.db, Some("movie"))?.iter().map(root_view).collect::<Vec<_>>())))
-}
-
-/// `POST rootfolder`: add a movie root folder.
-async fn root_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response {
-    let raw = b["path"].as_str().unwrap_or("");
-    let path = match crate::library::clean_path(raw) {
-        Ok(p) => p,
-        Err(_) => return validation("Path", "Invalid Path", json!(raw), "PathValidator"),
-    };
-    if !std::path::Path::new(&path).is_dir() {
-        return validation("Path", "Folder does not exist", json!(path), "FolderValidator");
-    }
-    let db = &st.db;
-    let r = (|| {
-        use kit_server_core::{p, Db};
-        if db.one("SELECT id FROM root_folders WHERE path=?", p![path])?.is_none() {
-            db.execute("INSERT INTO root_folders (kind, path, created_at) VALUES ('movie',?,?)", p![path, crate::auth::now()])?;
-        }
-        db.one("SELECT * FROM root_folders WHERE path=?", p![path])
-    })();
-    match r {
-        Ok(Some(row)) => with_status(201, root_view(&row)),
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `DELETE rootfolder/{id}`: forget a movie root folder (its files stay).
-async fn root_delete(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    use kit_server_core::{p, Db};
-    match st.db.one("SELECT id FROM root_folders WHERE id=? AND kind='movie'", p![id]) {
-        Ok(Some(_)) => match st.db.execute("DELETE FROM root_folders WHERE id=?", p![id]) {
-            Ok(_) => Json(json!({})).into_response(),
-            Err(e) => fail(e),
-        },
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// Radarr's indexer templates (Torznab and Newznab), which Prowlarr starts from.
-const INDEXER_SCHEMA: &str = include_str!("../data/radarr/indexer_schema.json");
-
-/// `GET indexer`.
-async fn indexers(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(arr::indexers(&st.db, APP)?)))
-}
-
-/// `GET indexer/schema`.
-async fn indexer_schema() -> Json<Value> {
-    Json(serde_json::from_str(INDEXER_SCHEMA).unwrap_or_else(|_| json!([])))
-}
-
-/// `GET indexer/{id}`.
-async fn indexer_one(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match arr::indexer(&st.db, APP, id) {
-        Ok(Some(v)) => Json(v).into_response(),
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `POST indexer`: keep an indexer Prowlarr pushes (201).
-async fn indexer_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response {
-    match arr::save_indexer(&st.db, APP, None, b) {
-        Ok(Ok(v)) => with_status(201, v),
-        Ok(Err(r)) => r,
-        Err(e) => fail(e),
-    }
-}
-
-/// `PUT indexer/{id}` (202).
-async fn indexer_put(State(st): State<AppState>, Path(id): Path<i64>, Json(b): Json<Value>) -> Response {
-    match arr::save_indexer(&st.db, APP, Some(id), b) {
-        Ok(Ok(v)) => with_status(202, v),
-        Ok(Err(r)) => r,
-        Err(e) => fail(e),
-    }
-}
-
-/// `DELETE indexer/{id}`.
-async fn indexer_delete(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match arr::delete_indexer(&st.db, APP, id) {
-        Ok(true) => Json(json!({})).into_response(),
-        Ok(false) => not_found(),
-        Err(e) => fail(e),
-    }
-}
-
-/// `GET command`.
-async fn command_list(State(st): State<AppState>) -> Result<Json<Value>> {
-    Ok(Json(json!(arr::commands(&st.db, APP)?)))
-}
-
-/// `GET command/{id}`.
-async fn command_one(State(st): State<AppState>, Path(id): Path<i64>) -> Response {
-    match arr::command(&st.db, APP, id) {
-        Ok(Some(v)) => Json(v).into_response(),
-        Ok(None) => not_found(),
-        Err(e) => fail(e),
-    }
 }
 
 /// `POST command`: `RefreshMovie` fetches the movies' details again from TMDB; the search commands are

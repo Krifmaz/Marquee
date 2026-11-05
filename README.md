@@ -46,14 +46,15 @@ docker run --read-only -p 8080:8080 -v marquee-data:/data marquee
 
 ## Connecting tools
 
-Marquee speaks the Radarr v3 API, so tools made for Radarr work unchanged. Use Marquee's API key (Settings →
+Marquee speaks the Radarr v3 and Sonarr v3 APIs, so tools made for Radarr and Sonarr work unchanged. Use Marquee's API key (Settings →
 General) and these addresses:
 
 | Tool | Address |
 | --- | --- |
 | Prowlarr (Apps → Radarr), Seerr, Homepage, nzb360, LunaSea | `http://<marquee>:8080/radarr` |
+| Prowlarr (Apps → Sonarr), Seerr, Homepage, nzb360, LunaSea | `http://<marquee>:8080/sonarr` |
 
-Movie information comes from TMDB: add a free API key in Settings → Connections.
+Movie and TV information comes from TMDB: add a free API key in Settings → Connections.
 
 ## Checks
 

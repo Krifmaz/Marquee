@@ -228,3 +228,158 @@ mod tests {
         assert_eq!(m.collection, Some((2344, "The Matrix Collection".into())));
     }
 }
+
+/// A TV series as Marquee keeps it, from TMDB's details.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SeriesInfo {
+    /// TMDB's id
+    pub tmdb_id: i64,
+    /// TheTVDB's id, 0 when TMDB doesn't know it
+    pub tvdb_id: i64,
+    /// IMDb's id, "" when unknown
+    pub imdb_id: String,
+    /// TVRage's old id, 0 when unknown
+    pub tvrage_id: i64,
+    /// the title in English
+    pub title: String,
+    /// the title in its own language
+    pub original_title: String,
+    /// the original language, ISO 639-1
+    pub original_language: String,
+    /// the summary
+    pub overview: String,
+    /// TMDB's status (`Returning Series`, `Ended`, `Canceled`, `In Production`, `Planned`)
+    pub tmdb_status: String,
+    /// the first episode's date, `YYYY-MM-DD`
+    pub first_aired: Option<String>,
+    /// the year it started, 0 when unknown
+    pub year: i64,
+    /// a usual episode's minutes
+    pub runtime: i64,
+    /// the first network
+    pub network: String,
+    /// genres in English
+    pub genres: Vec<String>,
+    /// the US rating (`TV-MA`), "" when none
+    pub certification: String,
+    /// the poster's TMDB path
+    pub poster: String,
+    /// the backdrop's TMDB path
+    pub fanart: String,
+    /// TMDB's average vote, 0–10
+    pub rating: f64,
+    /// how many voted
+    pub votes: i64,
+    /// the season numbers TMDB lists (0 is specials)
+    pub seasons: Vec<i64>,
+}
+
+/// An episode from TMDB.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EpisodeInfo {
+    /// TMDB's id
+    pub tmdb_id: i64,
+    /// the season (0 is specials)
+    pub season: i64,
+    /// the episode in its season
+    pub episode: i64,
+    /// the title
+    pub title: String,
+    /// the summary
+    pub overview: String,
+    /// when it airs, `YYYY-MM-DD`
+    pub air_date: Option<String>,
+    /// minutes
+    pub runtime: i64,
+}
+
+impl Tmdb {
+    /// Series matching `term`, best match first; brief information only.
+    pub async fn search_series(&self, term: &str) -> Result<Vec<SeriesInfo>> {
+        let v = self.get("/search/tv", &[("query", term.to_string()), ("include_adult", "false".into())]).await?;
+        Ok(v["results"].as_array().map(|a| a.iter().map(series_brief).collect()).unwrap_or_default())
+    }
+
+    /// One series' full details.
+    pub async fn series(&self, tmdb_id: i64) -> Result<SeriesInfo> {
+        let q = [("append_to_response", "external_ids,content_ratings".to_string())];
+        let v = self.get(&format!("/tv/{tmdb_id}"), &q).await?;
+        Ok(series_details(&v))
+    }
+
+    /// The episodes of one season.
+    pub async fn season(&self, tmdb_id: i64, season: i64) -> Result<Vec<EpisodeInfo>> {
+        let v = self.get(&format!("/tv/{tmdb_id}/season/{season}"), &[]).await?;
+        Ok(v["episodes"].as_array().map(|a| a.iter().map(|e| episode(e, season)).collect()).unwrap_or_default())
+    }
+
+    /// The TMDB id of the series with TheTVDB id `tvdb_id`, `None` when TMDB knows none.
+    pub async fn find_tvdb(&self, tvdb_id: i64) -> Result<Option<i64>> {
+        let v = self.get(&format!("/find/{tvdb_id}"), &[("external_source", "tvdb_id".into())]).await?;
+        Ok(v["tv_results"].as_array().and_then(|a| a.first()).and_then(|m| m["id"].as_i64()))
+    }
+
+    /// The TMDB id of the series with IMDb id `imdb_id`, `None` when TMDB knows none.
+    pub async fn find_imdb_series(&self, imdb_id: &str) -> Result<Option<i64>> {
+        let v = self.get(&format!("/find/{imdb_id}"), &[("external_source", "imdb_id".into())]).await?;
+        Ok(v["tv_results"].as_array().and_then(|a| a.first()).and_then(|m| m["id"].as_i64()))
+    }
+}
+
+/// A series search result: what a list shows.
+pub fn series_brief(v: &Value) -> SeriesInfo {
+    let first = s(v, "first_air_date");
+    SeriesInfo {
+        tmdb_id: v["id"].as_i64().unwrap_or(0),
+        title: s(v, "name"),
+        original_title: s(v, "original_name"),
+        original_language: s(v, "original_language"),
+        overview: s(v, "overview"),
+        year: year_of(&first),
+        first_aired: (!first.is_empty()).then_some(first),
+        poster: s(v, "poster_path"),
+        fanart: s(v, "backdrop_path"),
+        rating: v["vote_average"].as_f64().unwrap_or(0.0),
+        votes: v["vote_count"].as_i64().unwrap_or(0),
+        ..SeriesInfo::default()
+    }
+}
+
+/// A series' details (`/tv/{id}` with external ids and content ratings).
+pub fn series_details(v: &Value) -> SeriesInfo {
+    let mut m = series_brief(v);
+    let ext = &v["external_ids"];
+    m.tvdb_id = ext["tvdb_id"].as_i64().unwrap_or(0);
+    m.imdb_id = s(ext, "imdb_id");
+    m.tvrage_id = ext["tvrage_id"].as_i64().unwrap_or(0);
+    m.tmdb_status = s(v, "status");
+    m.network = v["networks"].as_array().and_then(|a| a.first()).map(|n| s(n, "name")).unwrap_or_default();
+    m.genres = v["genres"].as_array().map(|a| a.iter().map(|g| s(g, "name")).collect()).unwrap_or_default();
+    m.runtime = v["episode_run_time"]
+        .as_array()
+        .and_then(|a| a.first())
+        .and_then(Value::as_i64)
+        .or_else(|| v["last_episode_to_air"]["runtime"].as_i64())
+        .unwrap_or(0);
+    m.certification = v["content_ratings"]["results"]
+        .as_array()
+        .and_then(|a| a.iter().find(|r| s(r, "iso_3166_1") == "US"))
+        .map(|r| s(r, "rating"))
+        .unwrap_or_default();
+    m.seasons = v["seasons"].as_array().map(|a| a.iter().filter_map(|x| x["season_number"].as_i64()).collect()).unwrap_or_default();
+    m
+}
+
+/// An episode of a season answer.
+pub fn episode(v: &Value, season: i64) -> EpisodeInfo {
+    let date = s(v, "air_date");
+    EpisodeInfo {
+        tmdb_id: v["id"].as_i64().unwrap_or(0),
+        season: v["season_number"].as_i64().unwrap_or(season),
+        episode: v["episode_number"].as_i64().unwrap_or(0),
+        title: s(v, "name"),
+        overview: s(v, "overview"),
+        air_date: (!date.is_empty()).then_some(date),
+        runtime: v["runtime"].as_i64().unwrap_or(0),
+    }
+}
