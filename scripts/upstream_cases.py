@@ -6,7 +6,7 @@ ports run the upstream cases unchanged.
 
 The JSON maps each test method's name to its cases; each case is the list of arguments. C# strings, numbers,
 true/false and null become JSON values; an enum or constant (`Quality.HDTV720p`) becomes {"ref": "Quality.HDTV720p"};
-`new[] { ... }` becomes a list. Cases with `Ignore = ...` are left out, like NUnit does.
+`new[] { ... }` becomes a list (`new string[0]` an empty one). Cases with `Ignore = ...` are left out, like NUnit does.
 """
 import json
 import re
@@ -66,6 +66,9 @@ def parse_value(s, i):
     if m:
         vals, _, j = parse_args(s, i + m.end())
         return vals, j
+    m = re.match(r"new\s*[\w.<>]+\s*\[\s*0\s*\]", s[i:])
+    if m:
+        return [], i + m.end()
     m = re.match(r"-?\d+(?:\.\d+)?[dDfFmMlL]?", s[i:])
     if m:
         t = m.group(0).rstrip("dDfFmMlL")
