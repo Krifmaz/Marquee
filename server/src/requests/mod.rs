@@ -118,7 +118,7 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
 pub fn router() -> Router<AppState> {
-    seerr::router().merge(sliders::router()).merge(moving_in::router())
+    seerr::router().merge(discover::router()).merge(sliders::router()).merge(moving_in::router())
 }
 
 /// Every minute: approved requests whose files are all there become completed, and their people hear about it.

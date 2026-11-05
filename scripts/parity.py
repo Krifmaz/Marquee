@@ -31,7 +31,11 @@ METHODS = ("get", "post", "put", "delete", "patch")
 ROUTE_FILES = {
     "sonarr": [("server/src/sonarr.rs", "/sonarr/api/v3"), ("server/src/arr_common.rs", "/sonarr/api/v3")],
     "radarr": [("server/src/radarr.rs", "/radarr/api/v3"), ("server/src/arr_common.rs", "/radarr/api/v3")],
-    "seerr": [("server/src/requests/seerr.rs", "/api/v1")],
+    "seerr": [
+        ("server/src/requests/seerr.rs", "/api/v1"),
+        ("server/src/requests/discover.rs", "/api/v1"),
+        ("server/src/requests/sliders.rs", "/api/v1"),
+    ],
 }
 # Routes served outside the nested v3 router (path as upstream spells it -> Marquee path).
 EXTRA = {
