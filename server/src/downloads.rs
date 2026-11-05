@@ -54,6 +54,11 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             updated TEXT NOT NULL,
             imported TEXT
         );
+        CREATE TABLE IF NOT EXISTS turned_down (
+            title TEXT PRIMARY KEY,
+            reason TEXT NOT NULL,
+            added TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS movie_files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             movie_id INTEGER NOT NULL,
@@ -151,9 +156,9 @@ impl Download {
         }
     }
 
-    /// Whether it is still on its way (shown in the queue).
+    /// Whether it is still on its way (shown in the queue). A turned-down download is over.
     pub fn active(&self) -> bool {
-        !matches!(self.status.as_str(), "imported" | "removed")
+        !matches!(self.status.as_str(), "imported" | "removed" | "turnedDown")
     }
 }
 
@@ -216,7 +221,7 @@ fn queue_base(db: &SqliteDb, d: &Download) -> serde_json::Map<String, Value> {
         "paused" => ("paused", "ok", "downloading"),
         "completed" => ("completed", "ok", "importPending"),
         "importing" => ("completed", "ok", "importing"),
-        "importBlocked" => ("completed", "warning", "importBlocked"),
+        "importBlocked" | "review" => ("completed", "warning", "importBlocked"),
         "failed" => ("failed", "error", "failedPending"),
         _ => ("downloading", "ok", "downloading"),
     };
@@ -431,6 +436,27 @@ pub struct Outcome {
     pub reason: Option<String>,
 }
 
+/// Remembers that a release was turned down (its tracks were wrong, or a person rejected it), so it is never
+/// grabbed again.
+pub fn turn_down(db: &SqliteDb, title: &str, reason: &str) -> Result<()> {
+    db.execute(
+        "INSERT INTO turned_down (title, reason, added) VALUES (?,?,?) ON CONFLICT(title) DO UPDATE SET reason=excluded.reason",
+        p![title, reason, now_iso()],
+    )
+    .map(|_| ())
+}
+
+/// Marks the candidates that were turned down before and sorts them again, so they are never picked.
+fn skip_turned_down(db: &SqliteDb, mut c: Vec<Candidate>) -> Vec<Candidate> {
+    for x in c.iter_mut() {
+        if let Ok(Some(r)) = db.one("SELECT reason FROM turned_down WHERE title=?", p![x.release.title]) {
+            x.rejections.push(format!("It was turned down before: {}", r.s("reason")));
+        }
+    }
+    decide::sort(&mut c);
+    c
+}
+
 /// Every release Lantern finds for a movie, checked and in order (the best first).
 pub async fn movie_candidates(st: &AppState, m: &Movie) -> Result<Vec<Candidate>> {
     let lantern = Lantern::from(st)?;
@@ -446,7 +472,7 @@ pub async fn movie_candidates(st: &AppState, m: &Movie) -> Result<Vec<Candidate>
     };
     let found = lantern.search(&q).await?;
     let w = Wanted { kind: "movie", profile: &profile, sizes: &sizes, current };
-    Ok(decide::for_movie(&w, found, &[&m.info.title, &m.info.original_title], m.info.year, m.info.runtime))
+    Ok(skip_turned_down(&st.db, decide::for_movie(&w, found, &[&m.info.title, &m.info.original_title], m.info.year, m.info.runtime)))
 }
 
 /// Searches Lantern for a movie and grabs the best release.
@@ -559,7 +585,7 @@ pub async fn search_series(st: &AppState, id: i64, season: Option<i64>, only: &[
         if in_season.len() >= 2 && in_season.len() >= whole {
             let found = lantern.search(&LQuery { season: Some(n), ..base.clone() }).await?;
             out.looked_at += found.len();
-            let c = decide::for_episodes(&w, found, &titles, &in_season, &season_sizes);
+            let c = skip_turned_down(&st.db, decide::for_episodes(&w, found, &titles, &in_season, &season_sizes));
             if let Some(best) = c.into_iter().find(|c| c.ok() && c.parsed.full_season) {
                 picks.push(best);
             }
@@ -571,7 +597,7 @@ pub async fn search_series(st: &AppState, id: i64, season: Option<i64>, only: &[
                 }
                 let found = lantern.search(&LQuery { season: Some(n), episode: Some(e.episode), ..base.clone() }).await?;
                 out.looked_at += found.len();
-                let c = decide::for_episodes(&w, found, &titles, &in_season, &season_sizes);
+                let c = skip_turned_down(&st.db, decide::for_episodes(&w, found, &titles, &in_season, &season_sizes));
                 if let Some(best) = c.into_iter().find(|c| c.ok() && !c.parsed.full_season && c.episode_ids.contains(&e.id)) {
                     done.extend(best.episode_ids.iter().copied());
                     picks.push(best);
@@ -617,7 +643,7 @@ pub async fn search_missing(st: &AppState, movies_too: bool, tv_too: bool) {
 /// Takes Lantern's news about a download: progress and status, and the import once it is finished.
 pub async fn update(st: &AppState, g: &Grab) -> Result<Option<Download>> {
     let Some(d) = by_lantern(&st.db, &g.id)? else { return Ok(None) };
-    if matches!(d.status.as_str(), "imported" | "importing") {
+    if matches!(d.status.as_str(), "imported" | "importing" | "review" | "turnedDown") {
         return Ok(Some(d));
     }
     let status = if g.status.is_empty() { d.status.clone() } else { g.status.clone() };
@@ -645,8 +671,62 @@ fn blocked(db: &SqliteDb, id: i64, why: &str) -> Result<()> {
     db.execute("UPDATE downloads SET status='importBlocked', message=?, updated=? WHERE id=?", p![why, now_iso(), id]).map(|_| ())
 }
 
-/// Imports a finished download into the library and tells Lantern.
+/// Imports a finished download into the library and tells Lantern. Anime files are checked first.
 pub async fn import_download(st: &AppState, id: i64) -> Result<()> {
+    import_checked(st, id, true).await
+}
+
+/// Imports a download that a person kept from the anime Review queue, without checking its tracks again.
+pub async fn import_kept(st: &AppState, id: i64) -> Result<()> {
+    import_checked(st, id, false).await
+}
+
+/// Checks an anime download's real tracks against the language its request asked for. `Some(reason)` when
+/// they don't match; the download is then searched again or sent to the Review queue (setting `anime_mismatch`).
+async fn anime_check(st: &AppState, d: &Download, series_id: i64, videos: &[PathBuf]) -> Result<Option<String>> {
+    let Some(s) = series::find(&st.db, series_id)? else { return Ok(None) };
+    if s.series_type != "anime" && s.kind != "anime" {
+        return Ok(None);
+    }
+    let Some(choice) = crate::anime::choice_for_series(&st.db, s.info.tmdb_id) else { return Ok(None) };
+    let Some(reason) = videos.iter().find_map(|v| crate::anime::verify(v, &choice)) else { return Ok(None) };
+    if crate::anime::on_mismatch(st) == "review" {
+        let file = videos.first().map(|v| v.to_string_lossy().to_string()).unwrap_or_default();
+        crate::anime::send_to_review(&st.db, d.id, Some(series_id), &d.title, &file, &reason, &choice)?;
+        st.db.execute(
+            "UPDATE downloads SET status='review', message=?, updated=? WHERE id=?",
+            p![format!("Waiting for a look in the anime Review queue: {reason}"), now_iso(), d.id],
+        )?;
+    } else {
+        reject(st, d, &reason).await?;
+    }
+    Ok(Some(reason))
+}
+
+/// Turns a download down for good: Lantern drops it, the release is never grabbed again, and its episodes are
+/// searched again.
+pub async fn reject(st: &AppState, d: &Download, reason: &str) -> Result<()> {
+    turn_down(&st.db, &d.title, reason)?;
+    st.db.execute(
+        "UPDATE downloads SET status='turnedDown', message=?, updated=? WHERE id=?",
+        p![format!("Turned down: {reason}. Marquee searches again."), now_iso(), d.id],
+    )?;
+    if let Ok(l) = Lantern::from(st) {
+        if let Err(e) = l.remove(&d.lantern_id, true).await {
+            tracing::warn!("Lantern didn't drop {}: {}", d.title, e.detail);
+        }
+    }
+    match (d.movie_id, d.series_id) {
+        (Some(m), _) => spawn_search(st, Search::Movies(vec![m])),
+        (_, Some(_)) if !d.episode_ids.is_empty() => spawn_search(st, Search::Episodes(d.episode_ids.clone())),
+        (_, Some(s)) => spawn_search(st, Search::Series(s, None)),
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Imports a download; `check` runs the anime track check first.
+async fn import_checked(st: &AppState, id: i64, check: bool) -> Result<()> {
     let d = find(&st.db, id)?.ok_or_else(|| err(404, "There is no such download"))?;
     st.db.execute("UPDATE downloads SET status='importing', updated=? WHERE id=?", p![now_iso(), id])?;
     let videos = import::videos(&d.files);
@@ -657,6 +737,12 @@ pub async fn import_download(st: &AppState, id: i64) -> Result<()> {
             format!("There is no video file in {}", d.files.join(", "))
         };
         return blocked(&st.db, id, &why);
+    }
+    if let (true, Some(sid)) = (check, d.series_id) {
+        if let Some(reason) = anime_check(st, &d, sid, &videos).await? {
+            tracing::info!("{} wasn't imported: {reason}", d.title);
+            return Ok(());
+        }
     }
     let result = match (d.movie_id, d.series_id) {
         (Some(m), _) => import_movie(st, &d, m, &videos[0]),

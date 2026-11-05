@@ -78,7 +78,7 @@ async fn anime_choices_mapping_lookups_and_review() {
     let (anilist, list) = fakes().await;
     let st = server::AppState::open(&dir.join("data"), dir.join("static"), move |n| match n {
         "APP_API_KEY" => Some(KEY.to_string()),
-        "MARQUEE_ANILIST_URL" => Some(anilist.clone()),
+        "MARQUEE_REQUEST_ANILIST_URL" => Some(anilist.clone()),
         "MARQUEE_ANIME_LIST_URL" => Some(list.clone()),
         "MARQUEE_TRASH_AUTO" => Some("false".into()),
         _ => None,
@@ -89,10 +89,15 @@ async fn anime_choices_mapping_lookups_and_review() {
     let app = server::app(st.clone());
 
     let (_, c) = call(&app, "GET", "/api/anime/prefs", None).await;
-    assert_eq!((c["audio"].as_str(), c["words"].as_str()), (Some("sub"), Some("Sub only, English subtitles")));
-    let (s, c) = call(&app, "PUT", "/api/anime/prefs", Some(json!({ "audio": "dual", "subtitles": "" }))).await;
+    assert_eq!(c["audio"], "dual", "the request pages' default: {c}");
+    let (s, c) = call(&app, "PUT", "/api/anime/prefs", Some(json!({ "audio": "sub", "subtitles": "eng" }))).await;
     assert_eq!(s, StatusCode::OK, "{c}");
-    assert_eq!(c["words"], "Dual audio (Japanese and English)");
+    assert_eq!(c["words"], "Sub only, English subtitles");
+    let kept =
+        kit_server_core::Db::one(&st.db, "SELECT anime_audio, anime_subtitles FROM request_prefs WHERE user_id=1", kit_server_core::p![])
+            .unwrap()
+            .unwrap();
+    assert_eq!((kept["anime_audio"].as_str(), kept["anime_subtitles"].as_str()), (Some("sub"), Some("en")), "kept with the requests");
     let (s, v) = call(&app, "PUT", "/api/anime/prefs", Some(json!({ "audio": "loud" }))).await;
     assert_eq!((s, v["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("Pick Dub only, Dual audio or Sub only")));
 

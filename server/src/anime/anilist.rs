@@ -6,7 +6,7 @@ use kit_server_core::{err, Result};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-/// AniList's address (settings `anilist_url` can point elsewhere, for tests).
+/// AniList's address (setting `request_anilist_url`, shared with the request pages, can point elsewhere, for tests).
 pub const URL: &str = "https://graphql.anilist.co";
 
 /// The fields Marquee asks for, for every entry.
@@ -92,7 +92,7 @@ pub struct AniList {
 impl AniList {
     /// AniList for this server.
     pub fn from(st: &AppState) -> AniList {
-        let url = st.settings.str("anilist_url");
+        let url = st.settings.str("request_anilist_url");
         AniList { url: if url.trim().is_empty() { URL.into() } else { url.trim().to_string() }, http: st.http.clone() }
     }
 
