@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.3014 ([`cab419ade8`](https://github.com/Sonarr/Sonarr/tree/cab419ade8ac7fcab5bf80394ee492abd35d5f5a)). Marquee serves it under `/sonarr`.
 
-**51 done, 10 stub, 173 missing of 234.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**52 done, 10 stub, 172 missing of 234.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.301
 | `DELETE` | `/api/v3/indexer/{id}` | ✅ Done |
 | `GET` | `/api/v3/indexer/{id}` | ✅ Done |
 | `PUT` | `/api/v3/indexer/{id}` | ✅ Done |
-| `GET` | `/api/v3/indexerflag` | ⬜ Missing |
+| `GET` | `/api/v3/indexerflag` | ✅ Done |
 | `GET` | `/api/v3/language` | ✅ Done |
 | `GET` | `/api/v3/language/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/languageprofile` | ✅ Done |
