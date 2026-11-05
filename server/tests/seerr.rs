@@ -157,6 +157,14 @@ async fn fake_services() -> String {
         )
         .route("/trending/movie/week", get(move || async move { page(vec![matrix()]) }))
         .route(
+            "/collection/{id}",
+            get(|| async {
+                axum::Json(json!({ "id": 2344, "name": "The Matrix Collection", "parts": [
+                    { "id": 603, "title": "The Matrix" }, { "id": 604, "title": "The Matrix Reloaded" }, { "id": 604, "title": "The Matrix Reloaded" }
+                ] }))
+            }),
+        )
+        .route(
             "/trending/all/day",
             get(move || async move {
                 let mut m = matrix();
@@ -723,6 +731,40 @@ async fn discover_pages_follow_seerr_routes_discover_ts() {
     assert_eq!(page["totalResults"], 2);
     let (_, trending) = call(&app, "GET", "/discover/trending?mediaType=movie&timeWindow=week", Some(sam), None).await;
     assert_eq!((trending["totalResults"].as_i64(), trending["results"][0]["mediaType"].as_str()), (Some(1), Some("movie")));
+}
+
+#[tokio::test]
+async fn blocklist_follows_seerr_routes_blocklist_ts() {
+    let (app, _) = server("blocklist").await;
+    let sam = id_of(&app, "sam").await;
+    let (s, _) = call(&app, "GET", "/blocklist", Some(sam), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "a requester can't see the blocklist");
+    let add = json!({ "tmdbId": 95396, "mediaType": "tv", "title": "Severance", "user": 1 });
+    let (s, e) = call(&app, "POST", "/blocklist", None, Some(add.clone())).await;
+    assert_eq!(s, StatusCode::CREATED, "{e}");
+    let (s, e) = call(&app, "POST", "/blocklist", None, Some(add)).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::PRECONDITION_FAILED, Some("Item already blocklisted")));
+    let (s, e) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::FORBIDDEN, Some("This media is blocklisted.")));
+    let (_, show) = call(&app, "GET", "/tv/95396", Some(sam), None).await;
+    assert_eq!(show["mediaInfo"]["status"], 6, "Blocklisted");
+    assert_eq!(call(&app, "POST", "/blocklist/collection/2344", None, None).await.0, StatusCode::CREATED);
+    let (_, list) = call(&app, "GET", "/blocklist?take=2", None, None).await;
+    assert_eq!((list["pageInfo"]["results"].as_i64(), list["pageInfo"]["pages"].as_i64()), (Some(3), Some(2)));
+    assert_eq!(list["results"][0]["user"]["id"], 1);
+    let (_, found) = call(&app, "GET", "/blocklist?search=Sever", None, None).await;
+    assert_eq!(found["results"][0]["tmdbId"], 95396);
+    let (s, e) = call(&app, "GET", "/blocklist/95396", None, None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("Invalid or missing mediaType query parameter.")));
+    let (s, one) = call(&app, "GET", "/blocklist/95396?mediaType=tv", None, None).await;
+    assert_eq!((s, one["title"].as_str()), (StatusCode::OK, Some("Severance")));
+    assert_eq!(call(&app, "DELETE", "/blocklist/95396?mediaType=tv", None, None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, "DELETE", "/blocklist/95396?mediaType=tv", None, None).await.0, StatusCode::NOT_FOUND);
+    let (s, e) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    assert_eq!(s, StatusCode::CREATED, "off the list, it can be asked for again: {e}");
+    assert_eq!(call(&app, "DELETE", "/blocklist/collection/2344", None, None).await.0, StatusCode::NO_CONTENT);
+    let (_, list) = call(&app, "GET", "/blocklist", None, None).await;
+    assert_eq!(list["pageInfo"]["results"], 0);
 }
 
 #[tokio::test]

@@ -31,7 +31,7 @@ these by hand; rerun the script in the PR that adds the route):
 | --- | --- | --- | --- | --- |
 | Sonarr v3 | 52 | 10 | 172 | [parity/sonarr-api.md](parity/sonarr-api.md) |
 | Radarr v3 | 48 | 11 | 178 | [parity/radarr-api.md](parity/radarr-api.md) |
-| Seerr v1 | 64 | 0 | 153 | [parity/seerr-api.md](parity/seerr-api.md) |
+| Seerr v1 | 70 | 0 | 147 | [parity/seerr-api.md](parity/seerr-api.md) |
 
 "Stub" answers a fixed empty value so clients don't fail, but does nothing yet. To rerun:
 

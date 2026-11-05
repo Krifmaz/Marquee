@@ -15,6 +15,7 @@
 //! - `request_prefs`: each account's default language choice for anime requests.
 
 pub mod anilist;
+pub mod blocklist;
 pub mod discover;
 pub mod moving_in;
 pub mod notify;
@@ -113,12 +114,13 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
         );",
     )
     .map_err(|e| anyhow::anyhow!("The request tables can't be made: {}", e.detail))?;
-    sliders::migrate(db)
+    sliders::migrate(db)?;
+    blocklist::migrate(db)
 }
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
 pub fn router() -> Router<AppState> {
-    seerr::router().merge(discover::router()).merge(sliders::router()).merge(moving_in::router())
+    seerr::router().merge(blocklist::router()).merge(discover::router()).merge(sliders::router()).merge(moving_in::router())
 }
 
 /// Every minute: approved requests whose files are all there become completed, and their people hear about it.
@@ -710,6 +712,9 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
         } else if !movie && tq.restricted() {
             return Err(err(403, "Series Quota exceeded."));
         }
+    }
+    if media_by_tmdb(&st.db, &a.kind, a.tmdb_id)?.and_then(|m| m.status_override) == Some(media_status::BLOCKLISTED) {
+        return Err(err(403, "This media is blocklisted."));
     }
     let f = facts(st, &a.kind, a.tmdb_id).await?;
     let m = upsert_media(&st.db, &a.kind, a.tmdb_id, &f)?;
