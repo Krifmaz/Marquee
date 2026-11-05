@@ -16,6 +16,7 @@
 
 pub mod anilist;
 pub mod discover;
+pub mod moving_in;
 pub mod notify;
 pub mod seerr;
 
@@ -111,7 +112,7 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
 pub fn router() -> Router<AppState> {
-    seerr::router()
+    seerr::router().merge(moving_in::router())
 }
 
 /// Every minute: approved requests whose files are all there become completed, and their people hear about it.
