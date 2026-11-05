@@ -6,7 +6,7 @@ ports run the upstream cases unchanged.
 
 The JSON maps each test method's name to its cases; each case is the list of arguments. C# strings, numbers,
 true/false and null become JSON values; an enum or constant (`Quality.HDTV720p`) becomes {"ref": "Quality.HDTV720p"};
-`new[] { ... }` becomes a list (`new string[0]` an empty one). Cases with `Ignore = ...` are left out, like NUnit does.
+`new[] { ... }` becomes a list (`new string[0]` an empty one). Cases with `Ignore = ...` and commented-out cases are left out, like NUnit does.
 """
 import json
 import re
@@ -97,8 +97,38 @@ def parse_value(s, i):
     raise ValueError(f"can't read a C# value at: {s[i:i+40]!r}")
 
 
+def strip_comments(src):
+    """Blanks out // and /* */ comments (outside string literals), so commented-out cases are left out."""
+    out, i, n = [], 0, len(src)
+    while i < n:
+        if src.startswith('@"', i):
+            j = i + 2
+            while j < n and not (src[j] == '"' and src[j + 1:j + 2] != '"'):
+                j += 2 if src[j] == '"' else 1
+            out.append(src[i:j + 1])
+            i = j + 1
+        elif src[i] == '"':
+            j = i + 1
+            while j < n and src[j] != '"':
+                j += 2 if src[j] == "\\" else 1
+            out.append(src[i:j + 1])
+            i = j + 1
+        elif src.startswith("//", i):
+            j = src.find("\n", i)
+            i = n if j < 0 else j
+        elif src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            out.append(re.sub(r"[^\n]", " ", src[i:j]))
+            i = j
+        else:
+            out.append(src[i])
+            i += 1
+    return "".join(out)
+
+
 def main(path):
-    src = open(path, encoding="utf-8-sig").read()
+    src = strip_comments(open(path, encoding="utf-8-sig").read())
     out, pending = {}, []
     i = 0
     attr = re.compile(r"\[\s*(TestCase|Test|TestCaseSource)\b")
