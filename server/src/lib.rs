@@ -19,6 +19,7 @@
 //!
 //! Everything the app adds of its own goes into [`app`] next to them.
 
+pub mod anime;
 pub mod arr;
 pub mod arr_common;
 pub mod auth;
@@ -141,6 +142,7 @@ impl AppState {
         series::migrate(&db)?;
         arr::migrate(&db)?;
         downloads::migrate(&db)?;
+        anime::migrate(&db)?;
         // the tracks' own tables (docs/TRACKS.md)
         trash::migrate(&db)?;
         requests::migrate(&db)?;
@@ -271,6 +273,7 @@ pub fn app(st: AppState) -> Router {
     let spa = tower_http::set_header::SetResponseHeader::if_not_present(spa, header::VARY, HeaderValue::from_static("accept-encoding"));
     kit_server_notices::spawn_rechecks(st.clone());
     downloads::spawn(st.clone());
+    anime::spawn(st.clone());
     trash::spawn(st.clone());
     requests::spawn(st.clone());
     media_servers::spawn(st.clone());
@@ -291,6 +294,7 @@ pub fn app(st: AppState) -> Router {
         .merge(radarr::router(st.clone()))
         .merge(series::router())
         .merge(downloads::router())
+        .merge(anime::router())
         .merge(trash::router())
         .merge(requests::router())
         .merge(media_servers::router())
