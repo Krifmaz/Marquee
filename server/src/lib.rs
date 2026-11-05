@@ -32,6 +32,7 @@ pub mod lantern;
 pub mod library;
 pub mod mail;
 pub mod media_servers;
+pub mod migrate;
 pub mod movies;
 pub mod quality;
 pub mod radarr;
@@ -295,6 +296,7 @@ pub fn app(st: AppState) -> Router {
         .merge(series::router())
         .merge(downloads::router())
         .merge(anime::router())
+        .merge(migrate::router())
         .merge(trash::router())
         .merge(requests::router())
         .merge(media_servers::router())

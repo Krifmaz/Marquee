@@ -7,6 +7,7 @@
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
 //! | `#/movies` | every movie as a poster, TMDB search and Add (admins) |
 //! | `#/activity` | every download through Lantern, how far along, why one is stuck; Stop (admins) |
+//! | `#/move-in` | moving in from Radarr, Sonarr, jfa-go and Seerr: Check (a dry run), then Move in (admins) |
 //! | `#/tv` | every series as a poster with its missing episodes, TMDB search and Add (admins) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
@@ -16,6 +17,7 @@
 mod accounts;
 mod activity;
 mod media;
+mod move_in;
 mod movies;
 mod pages;
 mod requests;
@@ -192,6 +194,7 @@ fn Shell(me: Value) -> impl IntoView {
             "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
             "/tv" => view! { <tv::Tv admin=admin/> }.into_any(),
             "/activity" => view! { <activity::Activity admin=admin/> }.into_any(),
+            "/move-in" if admin => view! { <move_in::MoveIn/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
             // the tracks' own pages (docs/TRACKS.md), then Home
             p => trash::page(p, &r.query, admin)
@@ -213,6 +216,7 @@ fn Shell(me: Value) -> impl IntoView {
                     {track_links.into_iter().map(|(href, label)| view! { <NavLink href=href label=label route=route/> }).collect_view()}
                 </nav>
                 <nav class="nav nav-under">
+                    {admin.then(|| view! { <NavLink href="/move-in" label="Move in" route=route/> })}
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>
                 </nav>
                 <div class="sidebar-foot" style="margin-top:0">
