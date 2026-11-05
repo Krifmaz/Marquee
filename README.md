@@ -93,6 +93,6 @@ Data used as it is:
 | [TheTVDB](https://thetvdb.com) | API terms | TV metadata |
 | [anime-lists (Fribb)](https://github.com/Fribb/anime-lists) | MIT | anime ids across AniList, AniDB, MAL, TVDB and TMDB |
 | [AniList](https://anilist.co) | API terms | anime season lists and details on request pages (GraphQL API) |
-| [FFmpeg (ffprobe)](https://ffmpeg.org) | LGPL-2.1 / GPL-2.0 | reads the real audio and subtitle tracks of anime files |
+| [FFmpeg (ffprobe)](https://ffmpeg.org), static build by [mwader/static-ffmpeg](https://github.com/wader/static-ffmpeg) | LGPL-2.1 / GPL | reads the real audio and subtitle tracks of anime files; shipped in the Docker image |
 
 Built on the [Krifmaz kit](https://github.com/Krifmaz/kit) (MIT).

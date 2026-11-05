@@ -32,6 +32,10 @@ RUN cd web && trunk build --release --locked \
       -o -name '*.webmanifest' -o -name '*.json' \) -exec brotli -f -k -q 11 {} + -exec gzip -f -k -n -9 {} + \
  && find dist -name '*.br' | grep -q . && find dist -name '*.gz' | grep -q .
 
+# ffprobe (FFmpeg, LGPL/GPL), a static build for the target's platform: it reads the real audio and subtitle
+# tracks of anime files.
+FROM mwader/static-ffmpeg:7.1 AS ffmpeg
+
 # Distroless: no shell, no package manager, only glibc and CA certificates. Runs as the image's non-root user
 # (65532) and writes only to /data, so it also runs with `docker run --read-only`.
 FROM gcr.io/distroless/cc-debian13:nonroot
@@ -39,6 +43,7 @@ LABEL org.opencontainers.image.title="Marquee" \
       org.opencontainers.image.source="https://github.com/Krifmaz/marquee" \
       org.opencontainers.image.url="https://github.com/Krifmaz/marquee"
 COPY --from=build /app /usr/local/bin/marquee
+COPY --from=ffmpeg /ffprobe /usr/local/bin/ffprobe
 COPY --from=build --chown=65532:65532 /data /data
 COPY --from=ui /src/web/dist /app/static
 ARG APP_VERSION=

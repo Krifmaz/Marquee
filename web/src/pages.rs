@@ -73,6 +73,7 @@ pub fn SignIn() -> impl IntoView {
                     <label class="field"><span>"Password"</span><input class="input" type="password" name="password" autocomplete="current-password" required node_ref=password/></label>
                     <button class="btn primary" type="submit" style="padding:12px" disabled=busy>"Sign in"</button>
                 </form>
+                <crate::media::SignInOptions/>
             </div>
         </div>
     }
