@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Calendar feeds to subscribe to in any calendar app, as in Sonarr and Radarr: `/sonarr/feed/v3/calendar/Sonarr.ics` (episodes) and `/radarr/feed/v3/calendar/Radarr.ics` (cinema, digital and disc releases), with the same options (past and future days, tags, unmonitored, premieres only, all-day, release types).
 - Live updates for the Sonarr and Radarr web apps (their SignalR hub at `/sonarr/signalr/messages` and `/radarr/signalr/messages`), and their API paths now work in any letter case (`/api/v3/customFilter` as well as `/api/v3/customfilter`), as in Sonarr and Radarr.
 - The Sonarr and Radarr APIs answer what their own web apps load first: the interface strings (localization, in English), saved list filters (custom filters, kept per app), indexer flags and Radarr's collections list (empty until collections come over).
 - Seerr's discover rows (`/api/v1/settings/discover`, ported from Seerr 3.5.1): the twelve built-in rows, reordering and turning them off, rows of your own, and reset. `GET /api/v1/issue/count` answers zeros until issues come, and any other unknown `/api/v1` path now answers a JSON "not found" instead of the web app's page, so Seerr's own web app doesn't break.

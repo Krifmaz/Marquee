@@ -76,6 +76,7 @@ pub fn router(st: AppState) -> Router<AppState> {
         .route("/radarr/api", get(arr::api_versions))
         .route("/radarr/ping", get(arr::ping))
         .merge(crate::signalr::routes(crate::signalr::App::Radarr))
+        .merge(crate::calendar_feed::radarr_routes())
         .layer(axum::middleware::from_fn_with_state(st, arr::require_key))
 }
 
