@@ -25,6 +25,7 @@ pub mod arr;
 pub mod arr_common;
 pub mod auth;
 pub mod calendar;
+pub mod calendar_feed;
 pub mod checks;
 pub mod custom_filters;
 pub mod decide;
