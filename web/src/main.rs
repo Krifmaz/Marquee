@@ -6,6 +6,7 @@
 //! | after signing in | the What's new popup, once per release |
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
 //! | `#/movies` | every movie as a poster, TMDB search and Add (admins) |
+//! | `#/tv` | every series as a poster with its missing episodes, TMDB search and Add (admins) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
 //!
@@ -14,6 +15,7 @@
 mod accounts;
 mod movies;
 mod pages;
+mod tv;
 
 use kit_leptos::api::{self, HttpBackend};
 use kit_leptos::{details, dropzone, notice, offline, rt, toasts, update, whats_new};
@@ -177,6 +179,7 @@ fn Shell(me: Value) -> impl IntoView {
         match r.path.as_str() {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
             "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
+            "/tv" => view! { <tv::Tv admin=admin/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
             _ => view! { <pages::Home/> }.into_any(),
         }
@@ -188,6 +191,7 @@ fn Shell(me: Value) -> impl IntoView {
                 <nav class="nav">
                     <NavLink href="/" label="Home" route=route/>
                     <NavLink href="/movies" label="Movies" route=route/>
+                    <NavLink href="/tv" label="TV" route=route/>
                 </nav>
                 <nav class="nav nav-under">
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>

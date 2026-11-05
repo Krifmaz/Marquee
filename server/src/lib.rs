@@ -12,12 +12,15 @@
 //! | `/api/roles`, `/api/users`, `/api/users/{id}` | [`users`] (roles in [`roles`]) |
 //! | `/api/root-folders`, `/api/root-folders/{id}` | [`library`] |
 //! | `/api/movies`, `/api/movies/lookup`, `/api/movies/{id}` | [`movies`] (details from [`tmdb`]) |
+//! | `/api/series`, `/api/series/lookup`, `/api/series/{id}`, `/api/series/{id}/episodes` | [`series`] |
 //! | `/api/quality-profiles` | [`quality`] |
-//! | `/radarr/api/v3/*` (the Radarr v3 API, Marquee's API key) | [`radarr`] (shared parts in [`arr`]) |
+//! | `/radarr/api/v3/*` (the Radarr v3 API, Marquee's API key) | [`radarr`] (shared parts in [`arr`], [`arr_common`]) |
+//! | `/sonarr/api/v3/*` (the Sonarr v3 API, Marquee's API key) | [`sonarr`] |
 //!
 //! Everything the app adds of its own goes into [`app`] next to them.
 
 pub mod arr;
+pub mod arr_common;
 pub mod auth;
 pub mod checks;
 pub mod library;
@@ -25,6 +28,8 @@ pub mod movies;
 pub mod quality;
 pub mod radarr;
 pub mod roles;
+pub mod series;
+pub mod sonarr;
 pub mod tags;
 pub mod tmdb;
 pub mod users;
@@ -123,6 +128,7 @@ impl AppState {
         tags::migrate(&db)?;
         quality::migrate(&db)?;
         movies::migrate(&db)?;
+        series::migrate(&db)?;
         arr::migrate(&db)?;
         let kit = |e: kit_server_core::Error| anyhow::anyhow!("The kit's tables can't be made: {}", e.detail);
         let prefs = SqlitePrefs::new(db.clone()).map_err(kit)?;
@@ -264,6 +270,8 @@ pub fn app(st: AppState) -> Router {
         .merge(movies::router())
         .merge(quality::router())
         .merge(radarr::router(st.clone()))
+        .merge(series::router())
+        .merge(sonarr::router(st.clone()))
         .with_state(st)
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(security_headers))

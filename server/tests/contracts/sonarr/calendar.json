@@ -1,0 +1,36 @@
+[
+  {
+    "seriesId": 1,
+    "tvdbId": 9000004,
+    "episodeFileId": 0,
+    "seasonNumber": 2,
+    "episodeNumber": 1,
+    "title": "Beef",
+    "airDate": "2026-11-12",
+    "airDateUtc": "2026-11-12T03:00:00Z",
+    "runtime": 30,
+    "overview": "Episode overview.",
+    "hasFile": false,
+    "monitored": true,
+    "absoluteEpisodeNumber": 3,
+    "unverifiedSceneNumbering": false,
+    "id": 4
+  },
+  {
+    "seriesId": 1,
+    "tvdbId": 9000005,
+    "episodeFileId": 0,
+    "seasonNumber": 2,
+    "episodeNumber": 2,
+    "title": "Pasta",
+    "airDate": "2026-12-10",
+    "airDateUtc": "2026-12-10T03:00:00Z",
+    "runtime": 30,
+    "overview": "Episode overview.",
+    "hasFile": false,
+    "monitored": true,
+    "absoluteEpisodeNumber": 4,
+    "unverifiedSceneNumbering": false,
+    "id": 5
+  }
+]

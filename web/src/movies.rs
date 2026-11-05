@@ -6,7 +6,7 @@ use leptos::prelude::*;
 use serde_json::{json, Value};
 
 /// A string field of a JSON object, "" when missing.
-fn s(v: &Value, k: &str) -> String {
+pub fn s(v: &Value, k: &str) -> String {
     v.get(k).and_then(Value::as_str).unwrap_or("").to_string()
 }
 
@@ -25,7 +25,7 @@ pub fn standing(m: &Value) -> (&'static str, &'static str) {
 }
 
 /// One poster: the picture (or the title when there is none), the title and year, and a badge.
-fn poster(m: &Value, badge: (&'static str, &'static str), action: Option<AnyView>) -> impl IntoView {
+pub fn poster(m: &Value, badge: (impl Into<String>, &'static str), action: Option<AnyView>) -> impl IntoView {
     let title = s(m, "title");
     let year = m.get("year").and_then(Value::as_i64).filter(|y| *y > 0).map(|y| y.to_string()).unwrap_or_default();
     let img = s(m, "poster");
@@ -34,7 +34,7 @@ fn poster(m: &Value, badge: (&'static str, &'static str), action: Option<AnyView
     } else {
         view! { <div class="art"><img src=img alt="" loading="lazy" decoding="async"/></div> }.into_any()
     };
-    let (words, kind) = badge;
+    let (words, kind) = (badge.0.into(), badge.1);
     view! {
         <div class="poster">
             {art}

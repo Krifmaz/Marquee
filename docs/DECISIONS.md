@@ -22,3 +22,8 @@ One line per call that was not obvious.
 - 2026-11-05 · `DELETE movie?deleteFiles=true` forgets the movie but never deletes media files for now; deleting files needs the files step and stays an explicit choice.
 - 2026-11-05 · When TMDB can't be asked (no key or unreachable), a Radarr-API add keeps the details the caller sent, so Seerr and migrations still work; the next refresh fills in the rest.
 - 2026-11-05 · The server makes its API key on the first start (Settings → General) because Prowlarr and Seerr need one.
+- 2026-11-05 · TV information comes from TMDB too (one key for movies and TV); TheTVDB ids come from TMDB's external ids, so Sonarr clients that send `tvdbId` still work. TheTVDB's own API needs a paid key.
+- 2026-11-05 · TMDB has air dates but no air times, so `airDateUtc` is midnight UTC of the air date; Sonarr uses the network's local time. An episode counts as aired from that moment.
+- 2026-11-05 · Movies and TV share one quality table and one profile table, so the ids Marquee's Sonarr API gives are its own (Sonarr numbers from 1); clients read the ids from the lists and don't depend on the numbers.
+- 2026-11-05 · The Radarr and Sonarr APIs share one piece of code for the parts that are the same in both (queue, history, profiles, root folders, tags, indexers, commands); only movie and series parts differ.
+- 2026-11-05 · Specials (season 0) are never monitored by themselves, like Sonarr.

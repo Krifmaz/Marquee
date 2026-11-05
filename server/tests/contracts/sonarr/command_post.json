@@ -1,0 +1,29 @@
+{
+  "name": "RefreshSeries",
+  "commandName": "Refresh Series",
+  "body": {
+    "seriesIds": [
+      1
+    ],
+    "isNewSeries": false,
+    "sendUpdatesToClient": true,
+    "updateScheduledTask": false,
+    "isLongRunning": true,
+    "completionMessage": "Completed",
+    "requiresDiskAccess": false,
+    "isExclusive": false,
+    "name": "RefreshSeries",
+    "trigger": "manual",
+    "suppressMessages": false
+  },
+  "priority": "normal",
+  "status": "started",
+  "result": "unknown",
+  "queued": "2026-11-05T01:20:23Z",
+  "started": "2026-11-05T01:20:23Z",
+  "trigger": "manual",
+  "stateChangeTime": "2026-11-05T01:20:23Z",
+  "sendUpdatesToClient": true,
+  "updateScheduledTask": false,
+  "id": 1
+}

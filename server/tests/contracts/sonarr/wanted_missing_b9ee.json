@@ -1,0 +1,193 @@
+{
+  "page": 1,
+  "pageSize": 20,
+  "sortKey": "episodes.airDateUtc",
+  "sortDirection": "descending",
+  "totalRecords": 2,
+  "records": [
+    {
+      "seriesId": 1,
+      "tvdbId": 9000002,
+      "episodeFileId": 0,
+      "seasonNumber": 1,
+      "episodeNumber": 1,
+      "title": "System",
+      "airDate": "2022-06-23",
+      "airDateUtc": "2022-06-23T02:00:00Z",
+      "runtime": 30,
+      "overview": "Episode overview.",
+      "hasFile": false,
+      "monitored": true,
+      "absoluteEpisodeNumber": 1,
+      "unverifiedSceneNumbering": false,
+      "series": {
+        "title": "The Bear",
+        "sortTitle": "bear",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A young chef from the fine dining world returns to Chicago to run his family sandwich shop.",
+        "network": "FX",
+        "airTime": "22:00",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/sHFlbKS3WLqMnp9t2ghADIJFnuQ.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/i5nWbdVVZE7KxTP6ZdtR7L4eFgh.jpg"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2,
+            "monitored": true
+          }
+        ],
+        "year": 2022,
+        "path": "/data/media/tv/The Bear",
+        "qualityProfileId": 1,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 30,
+        "tvdbId": 403245,
+        "tvRageId": 0,
+        "tvMazeId": 53950,
+        "tmdbId": 136315,
+        "firstAired": "2022-06-23T00:00:00Z",
+        "lastAired": "2026-12-10T02:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "thebear",
+        "imdbId": "tt14452776",
+        "titleSlug": "the-bear",
+        "certification": "TV-MA",
+        "genres": [
+          "Comedy",
+          "Drama"
+        ],
+        "tags": [],
+        "added": "2026-11-05T01:00:00Z",
+        "addOptions": {
+          "searchForMissingEpisodes": false,
+          "searchForCutoffUnmetEpisodes": false,
+          "ignoreEpisodesWithFiles": false,
+          "ignoreEpisodesWithoutFiles": false,
+          "monitor": "unknown"
+        },
+        "ratings": {
+          "votes": 1200,
+          "value": 8.4
+        },
+        "languageProfileId": 1,
+        "id": 1
+      },
+      "id": 2
+    },
+    {
+      "seriesId": 1,
+      "tvdbId": 9000003,
+      "episodeFileId": 0,
+      "seasonNumber": 1,
+      "episodeNumber": 2,
+      "title": "Hands",
+      "airDate": "2022-06-23",
+      "airDateUtc": "2022-06-23T02:00:00Z",
+      "runtime": 30,
+      "overview": "Episode overview.",
+      "hasFile": false,
+      "monitored": true,
+      "absoluteEpisodeNumber": 2,
+      "unverifiedSceneNumbering": false,
+      "series": {
+        "title": "The Bear",
+        "sortTitle": "bear",
+        "status": "continuing",
+        "ended": false,
+        "overview": "A young chef from the fine dining world returns to Chicago to run his family sandwich shop.",
+        "network": "FX",
+        "airTime": "22:00",
+        "images": [
+          {
+            "coverType": "poster",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/sHFlbKS3WLqMnp9t2ghADIJFnuQ.jpg"
+          },
+          {
+            "coverType": "fanart",
+            "remoteUrl": "https://image.tmdb.org/t/p/original/i5nWbdVVZE7KxTP6ZdtR7L4eFgh.jpg"
+          }
+        ],
+        "originalLanguage": {
+          "id": 1,
+          "name": "English"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "monitored": false
+          },
+          {
+            "seasonNumber": 1,
+            "monitored": true
+          },
+          {
+            "seasonNumber": 2,
+            "monitored": true
+          }
+        ],
+        "year": 2022,
+        "path": "/data/media/tv/The Bear",
+        "qualityProfileId": 1,
+        "seasonFolder": true,
+        "monitored": true,
+        "monitorNewItems": "all",
+        "useSceneNumbering": false,
+        "runtime": 30,
+        "tvdbId": 403245,
+        "tvRageId": 0,
+        "tvMazeId": 53950,
+        "tmdbId": 136315,
+        "firstAired": "2022-06-23T00:00:00Z",
+        "lastAired": "2026-12-10T02:00:00Z",
+        "seriesType": "standard",
+        "cleanTitle": "thebear",
+        "imdbId": "tt14452776",
+        "titleSlug": "the-bear",
+        "certification": "TV-MA",
+        "genres": [
+          "Comedy",
+          "Drama"
+        ],
+        "tags": [],
+        "added": "2026-11-05T01:00:00Z",
+        "addOptions": {
+          "searchForMissingEpisodes": false,
+          "searchForCutoffUnmetEpisodes": false,
+          "ignoreEpisodesWithFiles": false,
+          "ignoreEpisodesWithoutFiles": false,
+          "monitor": "unknown"
+        },
+        "ratings": {
+          "votes": 1200,
+          "value": 8.4
+        },
+        "languageProfileId": 1,
+        "id": 1
+      },
+      "id": 3
+    }
+  ]
+}
