@@ -72,6 +72,7 @@ pub fn router(st: AppState) -> Router<AppState> {
         .nest("/sonarr/api/v3", v3)
         .route("/sonarr/api", get(arr::api_versions))
         .route("/sonarr/ping", get(arr::ping))
+        .merge(crate::signalr::routes(crate::signalr::App::Sonarr))
         .layer(axum::middleware::from_fn_with_state(st, arr::require_key))
 }
 

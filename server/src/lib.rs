@@ -43,6 +43,7 @@ pub mod release;
 pub mod requests;
 pub mod roles;
 pub mod series;
+pub mod signalr;
 pub mod sonarr;
 pub mod tags;
 pub mod tmdb;
@@ -282,7 +283,7 @@ pub fn app(st: AppState) -> Router {
     trash::spawn(st.clone());
     requests::spawn(st.clone());
     media_servers::spawn(st.clone());
-    Router::new()
+    let inner = Router::new()
         .merge(kit_server_health::router(kit_server_health::Health::new(VERSION, web)))
         .merge(kit_server_changelog::router())
         .merge(kit_server_changelog::prefs_router("/api/auth/prefs"))
@@ -309,7 +310,9 @@ pub fn app(st: AppState) -> Router {
         .with_state(st)
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(security_headers))
-        .layer(tower_http::compression::CompressionLayer::new())
+        .layer(tower_http::compression::CompressionLayer::new());
+    // the Sonarr and Radarr APIs match paths in any letter case, as ASP.NET does; the path is folded before routing
+    Router::new().fallback_service(tower::ServiceExt::map_request(inner, arr::fold_api_path))
 }
 
 /// Middleware: the security headers, the `x-<name>` mark and the cache policy on every answer.
