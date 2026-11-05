@@ -66,6 +66,10 @@ pub fn router(st: AppState) -> Router<AppState> {
         .route("/config/naming", get(naming))
         .route("/config/ui", get(ui))
         .route("/exclusions", get(|| async { Json(json!([])) }))
+        .merge(crate::localization::routes(crate::localization::App::Radarr))
+        .merge(crate::custom_filters::routes("radarr"))
+        .route("/indexerflag", get(|| async { Json(crate::arr_common::indexer_flags("radarr")) }))
+        .route("/collection", get(|| async { Json(json!([])) }))
         .merge(crate::arr_common::routes(&APP_INFO));
     Router::new()
         .nest("/radarr/api/v3", v3)

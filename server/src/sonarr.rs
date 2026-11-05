@@ -64,6 +64,9 @@ pub fn router(st: AppState) -> Router<AppState> {
         .route("/command", post(command_add))
         .route("/config/naming", get(naming))
         .route("/config/ui", get(ui))
+        .merge(crate::localization::routes(crate::localization::App::Sonarr))
+        .merge(crate::custom_filters::routes("sonarr"))
+        .route("/indexerflag", get(|| async { Json(crate::arr_common::indexer_flags("sonarr")) }))
         .merge(crate::arr_common::routes(&APP_INFO));
     Router::new()
         .nest("/sonarr/api/v3", v3)
