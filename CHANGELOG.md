@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Live updates for the Sonarr and Radarr web apps (their SignalR hub at `/sonarr/signalr/messages` and `/radarr/signalr/messages`), and their API paths now work in any letter case (`/api/v3/customFilter` as well as `/api/v3/customfilter`), as in Sonarr and Radarr.
 - The Sonarr and Radarr APIs answer what their own web apps load first: the interface strings (localization, in English), saved list filters (custom filters, kept per app), indexer flags and Radarr's collections list (empty until collections come over).
 - Parity checklist: docs/PARITY.md lists every Sonarr, Radarr and Seerr module, API endpoint and UI page to port, with where Marquee stands today; UPSTREAM.lock pins the exact upstream commits, and scripts/parity.py rewrites the endpoint tables from them.
 - Release qualities are now read by Sonarr's and Radarr's own quality rules, ported line by line: movies get Radarr's qualities (CAM, TELESYNC, BR-DISK, Remux and the rest) and TV gets Sonarr's, proper, repack and anime v2/v3 count as upstream, and the upstream test cases run with every build.

@@ -27,7 +27,7 @@ kit-server-notices = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1" }
 kit-server-bugreports = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1" }
 kit-server-diagnostics = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1" }
 kit-server-settings = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1" }
-axum = { version = "0.8", features = ["multipart"] }
+axum = { version = "0.8", features = ["multipart", "ws"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
 cookie = "0.18"
 tokio = { version = "1", features = ["full"] }
@@ -46,6 +46,7 @@ fs2 = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 regex = "1"
+tower = { version = "0.5", features = ["util"] }
 # ---- the tracks' own dependencies (docs/TRACKS.md): each track adds lines only under its own comment ----
 # TRaSH track
 fancy-regex = "0.14"
@@ -60,6 +61,8 @@ kit-server-changelog = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1",
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+tokio-tungstenite = "0.29"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 
 [lints.rust]
 missing_docs = "warn"

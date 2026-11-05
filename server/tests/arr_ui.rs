@@ -91,3 +91,46 @@ async fn indexer_flags_and_collections() {
     let (s, c) = call(&app, "GET", "/radarr/api/v3/collection", None).await;
     assert_eq!((s, c), (StatusCode::OK, json!([])));
 }
+
+#[tokio::test]
+async fn signalr_hub_speaks_the_json_protocol() {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    let app = server("signalr").await;
+    let (s, n) = call(&app, "POST", "/sonarr/signalr/messages/negotiate?negotiateVersion=1", None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(n["availableTransports"][0]["transport"], "WebSockets");
+    let (s, _) = call(&app, "GET", "/sonarr/signalr/messages", None).await;
+    assert_ne!(s, StatusCode::NOT_FOUND);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let url = format!("ws://{addr}/sonarr/signalr/messages?id={}&access_token={KEY}", n["connectionToken"].as_str().unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    ws.send(Message::Text("{\"protocol\":\"json\",\"version\":1}\u{1e}".into())).await.unwrap();
+    let hello = ws.next().await.unwrap().unwrap().into_text().unwrap();
+    assert_eq!(hello.as_str(), "{}\u{1e}", "handshake answer");
+    let version = ws.next().await.unwrap().unwrap().into_text().unwrap();
+    let v: Value = serde_json::from_str(version.trim_end_matches('\u{1e}')).unwrap();
+    assert_eq!(v["arguments"][0], json!({ "name": "version", "body": { "version": server::sonarr::COMPAT_VERSION } }));
+    server::signalr::broadcast(server::signalr::App::Sonarr, "series", json!({ "action": "updated", "resource": { "id": 7 } }));
+    let msg = ws.next().await.unwrap().unwrap().into_text().unwrap();
+    let v: Value = serde_json::from_str(msg.trim_end_matches('\u{1e}')).unwrap();
+    assert_eq!(v["arguments"][0]["body"]["resource"]["id"], 7);
+
+    let bad = format!("ws://{addr}/sonarr/signalr/messages?access_token=wrong");
+    assert!(tokio_tungstenite::connect_async(bad).await.is_err(), "the key is checked");
+}
+
+#[tokio::test]
+async fn api_paths_match_in_any_case() {
+    let app = server("case").await;
+    for path in ["/sonarr/api/v3/customFilter", "/radarr/api/v3/indexerFlag", "/Sonarr/API/v3/QualityProfile", "/radarr/api/v3/rootFolder"]
+    {
+        let (s, _) = call(&app, "GET", path, None).await;
+        assert_eq!(s, StatusCode::OK, "{path}");
+    }
+    let (s, _) = call(&app, "GET", "/sonarr/api/v3/customFilter/999", None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "ids still reach the route");
+}

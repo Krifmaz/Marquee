@@ -42,7 +42,7 @@ fn ct_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-/// The API key a request carries: the `X-Api-Key` header, else the `apikey` query parameter.
+/// The API key a request carries: the `X-Api-Key` header, else the `apikey` (or `access_token`) query parameter.
 pub fn request_key(req: &Request) -> Option<String> {
     if let Some(k) = req.headers().get("x-api-key").and_then(|v| v.to_str().ok()) {
         return Some(k.trim().to_string());
@@ -51,8 +51,36 @@ pub fn request_key(req: &Request) -> Option<String> {
         .query()?
         .split('&')
         .filter_map(|kv| kv.split_once('='))
-        .find(|(k, _)| k.eq_ignore_ascii_case("apikey"))
+        // `access_token` is how the SignalR client sends the key
+        .find(|(k, _)| k.eq_ignore_ascii_case("apikey") || k.eq_ignore_ascii_case("access_token"))
         .map(|(_, v)| v.to_string())
+}
+
+/// Folds the path of a Sonarr or Radarr API request (`/sonarr/api/…`, `/radarr/api/…`, and their `/signalr/` and
+/// `/feed/` paths) to lower case, so `/api/v3/customFilter` reaches `/api/v3/customfilter` as it does upstream, where
+/// ASP.NET matches routes in any case. Only the path is folded, never the query; ids are numbers, so nothing a route
+/// reads from the path changes.
+pub fn fold_api_path(mut req: Request) -> Request {
+    let path = req.uri().path();
+    let lower = path.to_ascii_lowercase();
+    let api = ["/sonarr/", "/radarr/"].iter().any(|b| {
+        lower.starts_with(b)
+            && ["api/", "signalr/", "feed/"].iter().any(|p| lower[b.len()..].starts_with(p) || lower[b.len()..] == p[..p.len() - 1])
+    });
+    if api && lower != path {
+        let pq = match req.uri().query() {
+            Some(q) => format!("{lower}?{q}"),
+            None => lower,
+        };
+        let mut parts = req.uri().clone().into_parts();
+        if let Ok(pq) = pq.parse() {
+            parts.path_and_query = Some(pq);
+            if let Ok(uri) = axum::http::Uri::from_parts(parts) {
+                *req.uri_mut() = uri;
+            }
+        }
+    }
+    req
 }
 
 /// Middleware: lets a request through only with Marquee's API key (401 with no body otherwise, as Radarr and
