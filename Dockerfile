@@ -32,6 +32,17 @@ RUN cd web && trunk build --release --locked \
       -o -name '*.webmanifest' -o -name '*.json' \) -exec brotli -f -k -q 11 {} + -exec gzip -f -k -n -9 {} + \
  && find dist -name '*.br' | grep -q . && find dist -name '*.gz' | grep -q .
 
+# The forked Sonarr, Radarr and Seerr web apps (ui/), built once on the build machine from the commits pinned in
+# UPSTREAM.lock with Marquee's patches (the Encore look), served at /sonarr, /radarr and /requests.
+FROM --platform=$BUILDPLATFORM node:22-trixie-slim AS upstream-ui
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates brotli python3 \
+ && rm -rf /var/lib/apt/lists/* && corepack enable
+WORKDIR /src
+COPY UPSTREAM.lock ./
+COPY ui ./ui
+COPY web/static/css/tokens.css ./tokens.css
+RUN ui/build-all.sh UPSTREAM.lock tokens.css /tmp/upstream /src/upstream-ui && rm -rf /tmp/upstream
+
 # ffprobe (FFmpeg, LGPL/GPL), a static build for the target's platform: it reads the real audio and subtitle
 # tracks of anime files.
 FROM mwader/static-ffmpeg:7.1 AS ffmpeg
@@ -46,6 +57,7 @@ COPY --from=build /app /usr/local/bin/marquee
 COPY --from=ffmpeg /ffprobe /usr/local/bin/ffprobe
 COPY --from=build --chown=65532:65532 /data /data
 COPY --from=ui /src/web/dist /app/static
+COPY --from=upstream-ui /src/upstream-ui /app/upstream-ui
 ARG APP_VERSION=
 LABEL org.opencontainers.image.version="${APP_VERSION}"
 ENV APP_DATA_DIR=/data APP_STATIC_DIR=/app/static APP_PORT=8080

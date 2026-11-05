@@ -18,7 +18,7 @@ kit-rules = { git = "https://github.com/Krifmaz/kit", tag = "v0.2.1" }
 leptos = { version = "=0.8.23", features = ["csr"] }
 serde_json = "1"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "Location", "Window"] }
+web-sys = { version = "0.3", features = ["Document", "Element", "HtmlElement", "HtmlFormElement", "HtmlInputElement", "Location", "UrlSearchParams", "Window"] }
 
 [lints.rust]
 missing_docs = "warn"
