@@ -112,6 +112,9 @@ pub fn profile(db: &SqliteDb, id: i64) -> Result<Option<Value>> {
 
 /// The profile a new item of `kind` gets: `HD-1080p` when there is one, else the first.
 pub fn default_profile(db: &SqliteDb, kind: &str) -> Result<i64> {
+    if let Some(id) = crate::trash::default_profile(db, kind) {
+        return Ok(id);
+    }
     if let Some(r) = db.one("SELECT id FROM quality_profiles WHERE kind=? AND name=?", p![kind, PREFERRED_MOVIE_PROFILE])? {
         return Ok(r.i("id"));
     }

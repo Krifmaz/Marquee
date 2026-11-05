@@ -83,7 +83,7 @@ impl Tmdb {
     }
 
     /// GET `path` with `query`; the answer's JSON, or a plain error.
-    async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
+    pub async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         if self.key.is_empty() {
             return Err(err(400, "Add a TMDB API key in Settings → Connections first"));
         }

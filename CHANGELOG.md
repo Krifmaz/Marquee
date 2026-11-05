@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- docs/TRACKS.md: who owns which files in the parallel tracks, the merge order, and hooks so each track adds pages, routes, tables and settings in its own files.
 - Downloads through Lantern: Marquee searches Lantern, picks the best release by quality profile and size (each release turned down says why), grabs it, shows it in Activity and in the Radarr and Sonarr queues, and hardlinks the finished files into the library with Radarr's and Sonarr's names. Search buttons on missing movies and series; Radarr and Sonarr search commands; a search for everything missing every 6 hours. The Lantern hub contract is in docs/LANTERN_HUB.md.
 - TV: TMDB search, series with seasons and episodes, a TV page with posters and Add, and the Sonarr v3 API at `/sonarr` (series, episodes, season pass, calendar, wanted, quality profiles, root folders for TV and anime, tags, indexers for Prowlarr, commands), checked against real Sonarr 4.0 answers.
 - Movies: TMDB search and details, a Movies page with posters and Add, and the Radarr v3 API at `/radarr` (movies, lookup, calendar, wanted, queue, history, quality profiles, root folders, tags, indexers for Prowlarr, commands), checked against real Radarr 6.4 answers.

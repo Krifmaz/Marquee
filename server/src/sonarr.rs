@@ -773,7 +773,10 @@ async fn command_add(State(st): State<AppState>, Json(mut b): Json<Value>) -> Re
 }
 
 /// `GET config/naming`: how series folders and episode files are named.
-async fn naming() -> Json<Value> {
+async fn naming(State(st): State<AppState>) -> Json<Value> {
+    if let Some(v) = crate::trash::naming(&st, "tv") {
+        return Json(v);
+    }
     Json(json!({
         "renameEpisodes": false,
         "replaceIllegalCharacters": true,

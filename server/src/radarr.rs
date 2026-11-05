@@ -533,7 +533,10 @@ pub async fn refresh(st: &AppState, ids: &[i64]) {
 }
 
 /// `GET config/naming`: how movie folders and files are named.
-async fn naming() -> Json<Value> {
+async fn naming(State(st): State<AppState>) -> Json<Value> {
+    if let Some(v) = crate::trash::naming(&st, "movie") {
+        return Json(v);
+    }
     Json(json!({
         "renameMovies": false,
         "replaceIllegalCharacters": true,

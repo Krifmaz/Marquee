@@ -50,7 +50,7 @@ async fn fake_lantern() -> (String, Arc<Mutex<Hub>>) {
                             rel("The.Matrix.1999.1080p.BluRay.x264-SPARKS", 10.0, 50),
                             rel("The.Matrix.Reloaded.2003.1080p.BluRay.x264-GRP", 10.0, 80),
                         ],
-                        Some("tvsearch") if q.get("ep").is_none() => vec![rel("The.Bear.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb", 2.0, 30)],
+                        Some("tvsearch") if !q.contains_key("ep") => vec![rel("The.Bear.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb", 2.0, 30)],
                         Some("tvsearch") => vec![rel("The.Bear.S01E01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb", 1.0, 30)],
                         _ => vec![],
                     };

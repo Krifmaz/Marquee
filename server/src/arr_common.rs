@@ -46,7 +46,7 @@ pub fn routes(app: &'static App) -> Router<AppState> {
         .route("/queue/status", get(move |State(st): State<AppState>| async move { queue_status(&st, app) }))
         .route("/queue/details", get(move |State(st): State<AppState>| async move { Json(json!((app.queue)(&st))) }))
         .route("/history", get(|Query(q): Query<Paging>| async move { Json(paged(&q, "date", "descending", vec![])) }))
-        .route("/customformat", get(empty_list))
+        .route("/customformat", get(move |State(st): State<AppState>| async move { Json(json!(crate::trash::custom_formats(&st, app.profile_kind))) }))
         .route("/notification", get(empty_list))
         .route("/downloadclient", get(empty_list))
         .route("/importlist", get(empty_list))
