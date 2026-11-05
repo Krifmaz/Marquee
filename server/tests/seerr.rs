@@ -471,6 +471,47 @@ async fn request_rules_follow_seerr_routes_request_ts() {
 }
 
 #[tokio::test]
+async fn media_routes_follow_seerr_routes_media_ts() {
+    let (app, _) = server("media").await;
+    let sam = id_of(&app, "sam").await;
+    let (_, movie) = call(&app, "POST", "/request", None, Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    let (_, tv) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    let (mid, tid) = (movie["media"]["id"].as_i64().unwrap(), tv["media"]["id"].as_i64().unwrap());
+
+    let (_, list) = call(&app, "GET", "/media", None, None).await;
+    let ids: Vec<i64> = list["results"].as_array().unwrap().iter().map(|m| m["id"].as_i64().unwrap()).collect();
+    assert_eq!(ids, vec![tid, mid], "newest id first");
+    let (_, pending) = call(&app, "GET", "/media?filter=pending", None, None).await;
+    assert_eq!(pending["pageInfo"]["results"], 1, "{pending}");
+
+    let (s, e) = call(&app, "POST", &format!("/media/{mid}/available"), Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to access this endpoint")));
+    let (s, e) = call(&app, "POST", &format!("/media/{mid}/partial"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::BAD_REQUEST, Some("Only series can be set to be partially available")));
+    let (s, e) = call(&app, "POST", "/media/999/available", None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Media does not exist.")));
+    let (s, m) = call(&app, "POST", &format!("/media/{tid}/partial"), None, None).await;
+    assert_eq!((s, m["status"].as_i64()), (StatusCode::OK, Some(4)));
+    let (s, m) = call(&app, "POST", &format!("/media/{tid}/sideways"), None, None).await;
+    assert_eq!((s, m["status"].as_i64()), (StatusCode::OK, Some(4)), "a word Seerr doesn't know changes nothing");
+
+    let (s, e) = call(&app, "GET", &format!("/media/{mid}/watch_data"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Tautulli API not configured.")));
+
+    // remove from the library: the title is marked deleted, and asking again starts over
+    let (_, movies) = native(&app, "GET", "/api/movies", Value::Null).await;
+    assert_eq!(movies.as_array().unwrap().len(), 1, "the owner's request was approved into the library");
+    assert_eq!(call(&app, "DELETE", &format!("/media/{mid}/file"), None, None).await.0, StatusCode::NO_CONTENT);
+    let (_, movies) = native(&app, "GET", "/api/movies", Value::Null).await;
+    assert_eq!(movies.as_array().unwrap().len(), 0);
+    let (_, list) = call(&app, "GET", "/media", None, None).await;
+    let gone = list["results"].as_array().unwrap().iter().find(|m| m["id"] == mid).unwrap().clone();
+    assert_eq!(gone["status"], 7, "deleted");
+    assert_eq!(call(&app, "DELETE", "/media/999/file", None, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(call(&app, "DELETE", "/media/999", None, None).await.0, StatusCode::NO_CONTENT, "nothing to forget is fine");
+}
+
+#[tokio::test]
 async fn discover_and_search_come_from_tmdb_with_what_was_asked_for() {
     let (app, _) = server("discover").await;
     let sam = id_of(&app, "sam").await;
