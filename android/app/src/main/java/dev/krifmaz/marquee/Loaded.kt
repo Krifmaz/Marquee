@@ -28,21 +28,21 @@ data class Loaded<T>(
 
 /**
  * GETs [path] from the server and keeps it as [Loaded]: the saved copy first (offline mode), then the server's
- * answer, kept for next time. Again every [everySeconds] while the page shows (null: once), and whenever [round]
- * changes (a Refresh). A failure keeps what is shown and says why.
+ * answer, kept for next time ([keep] false: no copy, for searches). Again every [everySeconds] while the page
+ * shows (null: once), and whenever [round] changes (a Refresh). A failure keeps what is shown and says why.
  */
 @Composable
-fun <T> rememberLoaded(app: App, path: String, round: Int, everySeconds: Long? = null, parse: (JsonElement?) -> T): Loaded<T> {
+fun <T> rememberLoaded(app: App, path: String, round: Int, everySeconds: Long? = null, keep: Boolean = true, parse: (JsonElement?) -> T): Loaded<T> {
     var state by remember(path) { mutableStateOf(Loaded<T>()) }
     LaunchedEffect(path, round) {
-        if (state.value == null) {
+        if (keep && state.value == null) {
             val saved = withContext(Dispatchers.IO) { app.settings.answers.read(path) }
             if (saved != null) state = Loaded(parse(parseJson(saved.text)), saved.at, null, loading = true)
         }
         while (true) {
             state = state.copy(loading = true)
             state = try {
-                val text = withContext(Dispatchers.IO) { app.server.getText(path).also { app.settings.answers.save(path, it) } }
+                val text = withContext(Dispatchers.IO) { app.server.getText(path).also { if (keep) app.settings.answers.save(path, it) } }
                 Loaded(parse(parseJson(text)), null, null, loading = false)
             } catch (e: CancellationException) {
                 throw e
