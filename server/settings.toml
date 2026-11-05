@@ -157,6 +157,45 @@ min = 1
 
 # ---- Requests track: keys start with request_ or seerr_ ----
 
+[sections.request_news]
+title = "Requests"
+
+[groups.request_notifications]
+section = "request_news"
+title = "Request news"
+desc = "Where Marquee says that someone asked for something, that it was approved or declined, and that it's ready to watch."
+
+[keys.request_discord_webhook]
+env = "MARQUEE_REQUEST_DISCORD_WEBHOOK"
+default = ""
+secret = true
+group = "request_notifications"
+label = "Discord webhook"
+help = "In Discord: channel settings → Integrations → Webhooks → New webhook → Copy webhook URL."
+type = "password"
+
+[keys.request_ntfy_url]
+env = "MARQUEE_REQUEST_NTFY_URL"
+default = ""
+group = "request_notifications"
+label = "ntfy topic address"
+help = "The full address of the topic, for example https://ntfy.sh/my-marquee."
+type = "text"
+
+[keys.request_ntfy_token]
+env = "MARQUEE_REQUEST_NTFY_TOKEN"
+default = ""
+secret = true
+group = "request_notifications"
+label = "ntfy access token"
+help = "Only when the topic is protected: ntfy → Account → Access tokens."
+type = "password"
+
+[keys.request_anilist_url]
+env = "MARQUEE_REQUEST_ANILIST_URL"
+default = ""
+help = "Where AniList's API is; empty means AniList itself. For tests and mirrors."
+
 # ---- end of the requests track ----
 
 # ---- Media servers track: keys start with jellyfin_, plex_, smtp_, signup_ or invite_ ----
