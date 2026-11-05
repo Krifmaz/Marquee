@@ -136,9 +136,12 @@ replace(
   checker,
   "import useSWR from 'swr';",
   "import useSWR from 'swr';\n\n" +
-    "/** Marquee: the server's version when the page opened. */\nlet seenCommitTag: string | undefined;\n" +
+    "/** Marquee: the server's version when the page opened. */\nconst seenCommitTag: { tag?: string } = {};\n" +
     '/** Marquee: the first version this page saw. */\n' +
-    'const firstCommitTag = (tag: string) => (seenCommitTag ??= tag);'
+    'const firstCommitTag = (tag: string): string => {\n' +
+    '  if (seenCommitTag.tag === undefined) seenCommitTag.tag = tag;\n' +
+    '  return seenCommitTag.tag;\n' +
+    '};'
 );
 
 // 6. the Encore look
@@ -188,6 +191,21 @@ replace(
   `/* Marquee: the kit's Encore colours as Tailwind channels (ui/seerr/patch.mjs) */\n` +
     `:root {\n${vars}\n}\n\n@tailwind base;`
 );
+// globals.css's own colours (scrollbars, the sidebar's blue-gray gradient) to the same tokens
+const ownColours = [
+  ['background: linear-gradient(180deg, rgba(31, 41, 55, 1) 0%, #131928 100%);',
+    'background: linear-gradient(180deg, rgb(var(--mq-gray-800)) 0%, rgb(var(--mq-gray-900)) 100%);'],
+  ['#1f2937', 'rgb(var(--mq-gray-800))'],
+  ['#4b5563', 'rgb(var(--mq-gray-600))'],
+  ['#6b7280', 'rgb(var(--mq-gray-500))'],
+];
+for (const [from, to] of ownColours) {
+  if (!read('src/styles/globals.css').includes(from)) {
+    console.error(`ui/seerr/patch.mjs: ${from} is no longer in src/styles/globals.css; update the patch.`);
+    process.exit(1);
+  }
+  write('src/styles/globals.css', read('src/styles/globals.css').replaceAll(from, to));
+}
 const palette = (name) =>
   `{ ${shades.map((s) => `${s}: 'rgb(var(--mq-${name}-${s}) / <alpha-value>)'`).join(', ')} }`;
 replace(
