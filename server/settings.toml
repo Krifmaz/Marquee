@@ -123,6 +123,32 @@ env = "MARQUEE_TMDB_URL"
 default = ""
 help = "Where TMDB's API is; empty means TMDB itself. For tests and mirrors."
 
+[groups.anime]
+section = "connections"
+title = "Anime"
+desc = "Anime downloads are checked with ffprobe: the real audio and subtitle tracks must match what was asked for."
+
+[keys.anime_mismatch]
+env = "MARQUEE_ANIME_MISMATCH"
+default = "research"
+group = "anime"
+label = "When the tracks don't match"
+type = "select"
+options = [["research", "Turn it down and search again"], ["review", "Keep it in the Review queue for a look"]]
+
+[keys.anime_list_url]
+env = "MARQUEE_ANIME_LIST_URL"
+default = ""
+label = "Anime mapping list address"
+help = "Where the community anime mapping list is fetched from each day; empty for Fribb/anime-lists, off for never."
+type = "text"
+
+[keys.anilist_url]
+env = "MARQUEE_ANILIST_URL"
+default = ""
+label = "AniList address"
+type = "text"
+
 # ---- Track blocks (docs/TRACKS.md). Each track adds its own sections, groups and keys only inside its own block,
 # ---- so two tracks never change the same lines. Core keeps everything above.
 
