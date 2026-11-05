@@ -4,6 +4,7 @@
 
 ### Added
 - Moving in from Radarr and Sonarr (the new Move in page, admins; `POST /api/migrate/radarr` and `/api/migrate/sonarr`): with the app's address and API key add every movie and series with its quality profile (by name), root folder, tags, monitored seasons and episodes, and keep the files where they are. A dry run comes first and says what would happen; path rewrites cover folders mounted in other places.
+- Android app: sign in with Jellyfin or Plex, and ask for a reset link, when the server offers them; More shows your account (role, when it ends, your Jellyfin and Plex access); admins can make, share, turn off and delete invite links from the phone.
 - The sign-in page shows Sign in with Plex, Sign in with Jellyfin and Forgot your password? when they are set up; Jellyfin and Plex scan their libraries after each import; the Docker image has ffprobe, so anime files are checked there too.
 - Android app: a Requests tab. See where each request is (waiting, approved, downloading, available), ask for a movie or chosen seasons from Trending or a search, and as an admin approve, decline or retry; remove a request you may remove.
 - Anime files are checked when they finish: when the audio or subtitles aren't what the request asked for, Marquee turns the release down for good and searches again, or puts it in the Review queue (Settings → Anime). Keep imports it; Reject turns it down. The language choice and the AniList address are now the same ones the request pages use.

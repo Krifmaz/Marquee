@@ -9,15 +9,16 @@ One activity in the kit's default theme; every page is a kit-compose part, wired
 | `MainActivity.kt` | The theme, the pages and the toasts; the daily update check |
 | `AppShell.kt` | The pages as a stack (Back goes down), and the bug report screens' host |
 | `ConnectPage.kt` | First start: the server's address |
-| `SignInPage.kt` | Username and password (and the authenticator code), the kit's phone sign-in |
+| `SignInPage.kt` | Username and password (and the authenticator code), the kit's phone sign-in; Jellyfin, Plex (plex.tv in the browser) and a reset link by mail when the server offers them |
 | `MainPage.kt` | Signed in: the offline banner, What's new, and the tabs Calendar, Queue, Library and More |
 | `CalendarPage.kt` | A week of movies coming out and episodes airing, by day (`GET /api/calendar`); Earlier and Later |
 | `RequestsPage.kt` | Requests on the Seerr API (`/api/v1/request`): where each one is; admins approve, decline, retry. Ask for something: Trending or a search, then a movie or seasons |
 | `QueuePage.kt` | What is downloading and what finished lately (`GET /api/downloads`, every 5 s); admins can stop one |
 | `LibraryPage.kt` | Every movie (`GET /api/movies`) and series (`GET /api/series`), with a title search; admins can search now |
-| `HomePage.kt` | The More tab: the server, What's new, admin pages, sign out, bug reports, crash log, updates |
+| `HomePage.kt` | The More tab: the server, your account, What's new, admin pages, sign out, bug reports, crash log, updates |
+| `AccountPages.kt` | Your account (role, end date, Jellyfin and Plex access from `/api/users/{id}/media`) and the admins' Invites page (make, share, turn off, delete) |
 | `Rows.kt`, `Loaded.kt` | The poster row; loading a list with its saved copy (offline mode) and the line about it |
-| `CalendarRules.kt`, `RequestRules.kt`, `QueueRules.kt`, `LibraryRules.kt` | Reading the answers and their words (unit-tested in `src/test`) |
+| `CalendarRules.kt`, `RequestRules.kt`, `QueueRules.kt`, `LibraryRules.kt`, `AccountRules.kt` | Reading the answers and their words (unit-tested in `src/test`) |
 | `AnswerCache.kt` | The saved copy of each list, forgotten on sign-out and on a server change (unit-tested) |
 | `AdminPages.kt` | Server settings (forms from the server's schema) and Diagnostics (with the app's crash reports) |
 | `Server.kt` | The address and token, the server's API (`KitApi`), What's new calls, the network check |

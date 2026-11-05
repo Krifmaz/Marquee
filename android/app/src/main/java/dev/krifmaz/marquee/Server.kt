@@ -8,6 +8,7 @@ import dev.krifmaz.kit.compose.KitApp
 import dev.krifmaz.kit.compose.core.ApiException
 import dev.krifmaz.kit.compose.core.KitApi
 import dev.krifmaz.kit.compose.core.bool
+import dev.krifmaz.kit.compose.core.long
 import dev.krifmaz.kit.compose.core.parseJson
 import dev.krifmaz.kit.compose.core.parseJsonObject
 import dev.krifmaz.kit.compose.core.str
@@ -107,15 +108,21 @@ data class Me(
     val owner: Boolean,
     /** May ask for movies and series (`can_request`; read-only accounts may not). */
     val canRequest: Boolean = true,
+    /** The account's id (0 when the server didn't say). */
+    val id: Long = 0,
+    /** The account's name. */
+    val username: String = "",
+    /** The account's role: `owner`, `admin`, `requester` or `viewer`. */
+    val role: String = "",
 ) {
     /** Reading the answer. */
     companion object {
-        /** The account from `GET /api/auth/me` (`is_admin`, or a `role` of admin or owner; `can_request`). */
+        /** The account from `GET /api/auth/me` (`id`, `username`, `is_admin`, or a `role` of admin or owner; `can_request`). */
         fun of(o: JsonObject): Me {
             val role = o.str("role")
             val admin = o.bool("is_admin") || role == "admin" || role == "owner"
             val canRequest = if (o.containsKey("can_request")) o.bool("can_request") else role != "viewer"
-            return Me(admin = admin, owner = role == "owner", canRequest = admin || canRequest)
+            return Me(admin = admin, owner = role == "owner", canRequest = admin || canRequest, id = o.long("id"), username = o.str("username"), role = role)
         }
     }
 }
@@ -179,6 +186,9 @@ class ServerApi(private val settings: ServerSettings) {
     /** PUT [body] as JSON to [path]. */
     fun put(path: String, body: JsonElement): JsonElement? = call("PUT", path, body)
 
+    /** PATCH [body] as JSON to [path]. */
+    fun patch(path: String, body: JsonElement): JsonElement? = call("PATCH", path, body)
+
     /** DELETE [path]. */
     fun delete(path: String): JsonElement? = call("DELETE", path, null)
 
@@ -214,11 +224,31 @@ class ServerApi(private val settings: ServerSettings) {
      * Signs in (`POST /api/auth/login`, asking for an app token for this phone) and keeps the token when it worked.
      * Throws an [IOException] when the server can't be reached.
      */
-    fun login(username: String, password: String, code: String?): LoginResult {
-        val name = SignInRules.deviceName(Build.MANUFACTURER.orEmpty(), Build.MODEL.orEmpty())
-        val body = SignInRules.body(username, password, code, settings.deviceId, name)
-        val req = Request.Builder().url(need("/api/auth/login")).header("Accept", "application/json").post(body.toString().toRequestBody(jsonType)).build()
-        val result = http.newCall(req).execute().use { SignInRules.result(it.code, it.body.string()) }
+    fun login(username: String, password: String, code: String?): LoginResult =
+        signIn("/api/auth/login", SignInRules.body(username, password, code, settings.deviceId, deviceName())) ?: LoginResult.Failed(SignInRules.FAILED)
+
+    /** Signs in with a Jellyfin name and password (`POST /api/auth/jellyfin`), like [login]. */
+    fun loginJellyfin(username: String, password: String): LoginResult =
+        signIn("/api/auth/jellyfin", SignInRules.body(username, password, null, settings.deviceId, deviceName())) ?: LoginResult.Failed(SignInRules.FAILED)
+
+    /** Starts a Plex sign-in (`POST /api/auth/plex/start`): the page to open in the browser. */
+    fun plexStart(): PlexPin = AccountRules.plexPin(post("/api/auth/plex/start", JsonObject(emptyMap()))) ?: throw IOException(UNEXPECTED)
+
+    /** Asks whether the Plex sign-in [id] is done (`POST /api/auth/plex/finish`); null while plex.tv still waits. */
+    fun plexFinish(id: String): LoginResult? = signIn("/api/auth/plex/finish", AccountRules.plexFinishBody(id, settings.deviceId, deviceName()))
+
+    /** Asks for a password reset link by mail (`POST /api/public/password/forgot`). */
+    fun forgotPassword(login: String) {
+        post("/api/public/password/forgot", AccountRules.forgotBody(login))
+    }
+
+    /** This phone's name as people know it ("Google Pixel 8"). */
+    private fun deviceName(): String = SignInRules.deviceName(Build.MANUFACTURER.orEmpty(), Build.MODEL.orEmpty())
+
+    /** POSTs a sign-in [body] to [path] and keeps the token when it worked; null for a 202 (not done yet). */
+    private fun signIn(path: String, body: JsonObject): LoginResult? {
+        val req = Request.Builder().url(need(path)).header("Accept", "application/json").post(body.toString().toRequestBody(jsonType)).build()
+        val result = http.newCall(req).execute().use { if (AccountRules.stillWaiting(it.code)) null else SignInRules.result(it.code, it.body.string()) }
         if (result is LoginResult.Success) settings.signIn(result.token)
         return result
     }
