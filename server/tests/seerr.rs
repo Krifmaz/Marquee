@@ -471,6 +471,96 @@ async fn request_rules_follow_seerr_routes_request_ts() {
 }
 
 #[tokio::test]
+async fn media_routes_follow_seerr_routes_media_ts() {
+    let (app, _) = server("media").await;
+    let sam = id_of(&app, "sam").await;
+    let (_, movie) = call(&app, "POST", "/request", None, Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    let (_, tv) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    let (mid, tid) = (movie["media"]["id"].as_i64().unwrap(), tv["media"]["id"].as_i64().unwrap());
+
+    let (_, list) = call(&app, "GET", "/media", None, None).await;
+    let ids: Vec<i64> = list["results"].as_array().unwrap().iter().map(|m| m["id"].as_i64().unwrap()).collect();
+    assert_eq!(ids, vec![tid, mid], "newest id first");
+    let (_, pending) = call(&app, "GET", "/media?filter=pending", None, None).await;
+    assert_eq!(pending["pageInfo"]["results"], 1, "{pending}");
+
+    let (s, e) = call(&app, "POST", &format!("/media/{mid}/available"), Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to access this endpoint")));
+    let (s, e) = call(&app, "POST", &format!("/media/{mid}/partial"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::BAD_REQUEST, Some("Only series can be set to be partially available")));
+    let (s, e) = call(&app, "POST", "/media/999/available", None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Media does not exist.")));
+    let (s, m) = call(&app, "POST", &format!("/media/{tid}/partial"), None, None).await;
+    assert_eq!((s, m["status"].as_i64()), (StatusCode::OK, Some(4)));
+    let (s, m) = call(&app, "POST", &format!("/media/{tid}/sideways"), None, None).await;
+    assert_eq!((s, m["status"].as_i64()), (StatusCode::OK, Some(4)), "a word Seerr doesn't know changes nothing");
+
+    let (s, e) = call(&app, "GET", &format!("/media/{mid}/watch_data"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Tautulli API not configured.")));
+
+    // remove from the library: the title is marked deleted, and asking again starts over
+    let (_, movies) = native(&app, "GET", "/api/movies", Value::Null).await;
+    assert_eq!(movies.as_array().unwrap().len(), 1, "the owner's request was approved into the library");
+    assert_eq!(call(&app, "DELETE", &format!("/media/{mid}/file"), None, None).await.0, StatusCode::NO_CONTENT);
+    let (_, movies) = native(&app, "GET", "/api/movies", Value::Null).await;
+    assert_eq!(movies.as_array().unwrap().len(), 0);
+    let (_, list) = call(&app, "GET", "/media", None, None).await;
+    let gone = list["results"].as_array().unwrap().iter().find(|m| m["id"] == mid).unwrap().clone();
+    assert_eq!(gone["status"], 7, "deleted");
+    assert_eq!(call(&app, "DELETE", "/media/999/file", None, None).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(call(&app, "DELETE", "/media/999", None, None).await.0, StatusCode::NO_CONTENT, "nothing to forget is fine");
+}
+
+#[tokio::test]
+async fn discover_rows_and_unknown_paths_answer_like_seerr() {
+    let (app, _) = server("sliders").await;
+    let sam = id_of(&app, "sam").await;
+    let (s, rows) = call(&app, "GET", "/settings/discover", Some(sam), None).await;
+    assert_eq!(s, StatusCode::OK, "{rows}");
+    let types: Vec<i64> = rows.as_array().unwrap().iter().map(|r| r["type"].as_i64().unwrap()).collect();
+    assert_eq!(types, (1..=12).collect::<Vec<_>>(), "Seerr's twelve built-in rows in order");
+    assert_eq!(rows[0]["isBuiltIn"], true);
+    let (s, _) =
+        call(&app, "POST", "/settings/discover/add", Some(sam), Some(json!({ "type": 17, "title": "Space", "data": "space" }))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "admins only");
+    let (_, added) =
+        call(&app, "POST", "/settings/discover/add", None, Some(json!({ "type": 17, "title": "Space", "data": "space" }))).await;
+    assert_eq!((added["enabled"].as_bool(), added["order"].as_i64(), added["isBuiltIn"].as_bool()), (Some(false), Some(-1), Some(false)));
+    let new_id = added["id"].as_i64().unwrap();
+    // move the new row first, turn it on, turn "Recently added" off
+    let mut list: Vec<Value> = vec![json!({ "id": new_id, "enabled": true, "type": 17, "title": "Space", "data": "space" })];
+    for r in rows.as_array().unwrap() {
+        let mut r = r.clone();
+        if r["type"] == 1 {
+            r["enabled"] = json!(false);
+        }
+        list.push(r);
+    }
+    assert_eq!(call(&app, "POST", "/settings/discover", None, Some(json!(list))).await.0, StatusCode::OK);
+    let (_, rows) = call(&app, "GET", "/settings/discover", None, None).await;
+    assert_eq!((rows[0]["id"].as_i64(), rows[0]["enabled"].as_bool()), (Some(new_id), Some(true)));
+    assert_eq!((rows[1]["type"].as_i64(), rows[1]["enabled"].as_bool()), (Some(1), Some(false)));
+    let builtin = rows[1]["id"].as_i64().unwrap();
+    let (s, e) = call(&app, "DELETE", &format!("/settings/discover/{builtin}"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Slider not found or cannot be deleted.")));
+    let (_, changed) =
+        call(&app, "PUT", &format!("/settings/discover/{new_id}"), None, Some(json!({ "type": 17, "title": "Stars", "data": "stars" })))
+            .await;
+    assert_eq!(changed["title"], "Stars");
+    assert_eq!(call(&app, "DELETE", &format!("/settings/discover/{new_id}"), None, None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, "GET", "/settings/discover/reset", None, None).await.0, StatusCode::NO_CONTENT);
+    let (_, rows) = call(&app, "GET", "/settings/discover", None, None).await;
+    assert_eq!(rows.as_array().unwrap().len(), 12);
+    assert_eq!(rows[0]["enabled"], true, "reset turns every built-in row back on");
+
+    let (s, count) = call(&app, "GET", "/issue/count", Some(sam), None).await;
+    assert_eq!((s, count["total"].as_i64()), (StatusCode::OK, Some(0)));
+    let (s, e) = call(&app, "GET", "/no/such/thing", None, None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert!(e["message"].as_str().unwrap().contains("/api/v1/no/such/thing"), "JSON, not the web app's page: {e}");
+}
+
+#[tokio::test]
 async fn discover_and_search_come_from_tmdb_with_what_was_asked_for() {
     let (app, _) = server("discover").await;
     let sam = id_of(&app, "sam").await;

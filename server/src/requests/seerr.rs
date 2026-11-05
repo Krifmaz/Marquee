@@ -16,7 +16,8 @@
 //! GET    /request/{id}   PUT /request/{id} (a waiting one: yours, or any with MANAGE_REQUESTS)
 //! DELETE /request/{id} (MANAGE_REQUESTS, or your own waiting one)
 //! POST   /request/{id}/approve | /decline | /retry (MANAGE_REQUESTS)
-//! GET    /media?take&skip&filter&sort    DELETE /media/{id}    POST /media/{id}/{available|partial|processing|pending|unknown}
+//! GET    /media?take&skip&filter&sort    DELETE /media/{id}    DELETE /media/{id}/file    GET /media/{id}/watch_data
+//! POST   /media/{id}/{available|partial|processing|pending|unknown}   (MANAGE_REQUESTS; watch_data: admins)
 //! GET    /user  /user/{id}  /user/{id}/requests  /user/{id}/quota
 //! GET    /user/{id}/settings/main (POST: limits, admins; anime language, the account itself)
 //! GET    /user/{id}/settings/permissions (POST: admins)
@@ -25,6 +26,8 @@
 //!        /tv/{id}/season/{n}, /tv/{id}/recommendations|similar
 //! GET    /tv/{id}/anilist                    Marquee's own: AniList's seasons of an anime
 //! POST   /settings/notifications/test        Marquee's own: a test notification to every place set up (admins)
+//! GET    /issue/count                         zeros until issues are ported
+//! anything else under /api/v1                 a JSON 404 (discover's rows are in [`super::sliders`])
 //! ```
 
 use super::{
@@ -153,7 +156,7 @@ impl FromRequestParts<AppState> for Seerr {
 
 impl Seerr {
     /// `Ok` when the account has any of `bits`, else Seerr's 403.
-    fn needs(&self, bits: &[i64]) -> std::result::Result<(), Fail> {
+    pub fn needs(&self, bits: &[i64]) -> std::result::Result<(), Fail> {
         if self.0.has(bits) {
             Ok(())
         } else {
@@ -185,6 +188,8 @@ pub fn router() -> Router<AppState> {
         .route("/request/{id}/{action}", post(approve_or_decline))
         .route("/media", get(list_media))
         .route("/media/{id}", axum::routing::delete(delete_media))
+        .route("/media/{id}/file", axum::routing::delete(delete_media_file))
+        .route("/media/{id}/watch_data", get(watch_data))
         .route("/media/{id}/{status}", post(set_media_status))
         .route("/user", get(list_users))
         .route("/user/{id}", get(one_user))
@@ -204,8 +209,21 @@ pub fn router() -> Router<AppState> {
         .route("/tv/{id}/anilist", get(anilist))
         .route("/tv/{id}/season/{n}", get(tv_season))
         .route("/tv/{id}/{list}", get(tv_list))
-        .route("/settings/notifications/test", post(test_notifications));
+        .route("/settings/notifications/test", post(test_notifications))
+        .route("/issue/count", get(issue_count))
+        .fallback(no_such_path);
     Router::new().nest("/api/v1", v1)
+}
+
+/// Any `/api/v1` path Seerr's API doesn't have here: a JSON 404, so Seerr's web app and clients never get the web
+/// app's page where they expect JSON.
+async fn no_such_path(axum::extract::OriginalUri(uri): axum::extract::OriginalUri) -> Fail {
+    Fail(err(404, format!("There is nothing at {} here.", uri.path())))
+}
+
+/// `GET /issue/count`: Seerr's issue counts, all zero until the issues module is ported.
+async fn issue_count(_s: Seerr) -> Answer {
+    ok(json!({ "total": 0, "video": 0, "audio": 0, "subtitles": 0, "others": 0, "open": 0, "closed": 0 }))
 }
 
 /// Seerr's Seerr-style permission bits for an account.
@@ -839,51 +857,87 @@ pub struct MediaQuery {
     pub sort: Option<String>,
 }
 
-/// `GET /media`.
+/// `GET /media`, ported from Seerr's `routes/media.ts`: newest id first (`modified`: last changed first;
+/// `mediaAdded`: newest in the library first), filtered by the title's status.
 async fn list_media(State(st): State<AppState>, _s: Seerr, Query(q): Query<MediaQuery>) -> Answer {
+    use super::media_status as ms;
+    let wanted: Option<Vec<i64>> = match q.filter.as_deref().unwrap_or("all") {
+        "available" => Some(vec![ms::AVAILABLE]),
+        "partial" => Some(vec![ms::PARTIALLY_AVAILABLE]),
+        "allavailable" => Some(vec![ms::AVAILABLE, ms::PARTIALLY_AVAILABLE]),
+        "processing" => Some(vec![ms::PROCESSING]),
+        "pending" => Some(vec![ms::PENDING]),
+        _ => None,
+    };
     let mut list = Vec::new();
     for m in all_media(&st.db)? {
         let a = availability(&st.db, &m)?;
-        let keep = match q.filter.as_deref().unwrap_or("all") {
-            "available" => a.status == super::media_status::AVAILABLE,
-            "partial" => a.status == super::media_status::PARTIALLY_AVAILABLE,
-            "allavailable" => a.status >= super::media_status::PARTIALLY_AVAILABLE,
-            "processing" => a.status == super::media_status::PROCESSING,
-            "pending" => a.status == super::media_status::PENDING,
-            _ => true,
-        };
-        if keep {
+        if wanted.as_ref().is_none_or(|w| w.contains(&a.status)) {
             list.push(m);
         }
     }
-    let modified = q.sort.as_deref() == Some("modified");
-    list.sort_by_key(|m| std::cmp::Reverse((when(if modified { &m.updated_at } else { &m.created_at }), m.id)));
+    match q.sort.as_deref() {
+        Some("modified") => list.sort_by_key(|m| std::cmp::Reverse((when(&m.updated_at), m.id))),
+        Some("mediaAdded") => list.sort_by_key(|m| std::cmp::Reverse((when(&m.created_at), m.id))),
+        _ => list.sort_by_key(|m| std::cmp::Reverse(m.id)),
+    }
     let items = list.iter().map(|m| media_json(&st.db, m, true)).collect::<kit_server_core::Result<Vec<_>>>()?;
     ok(paged(items, &Paging { take: q.take, skip: q.skip }, 20))
 }
 
-/// `DELETE /media/{id}`: forget a title and its requests (admins; the library keeps the movie or series).
+/// `DELETE /media/{id}` (MANAGE_REQUESTS): forget a title and its requests; 204 also when there is no such
+/// title, like Seerr. The library keeps the movie or series.
 async fn delete_media(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    s.admin()?;
-    media(&st.db, id)?.ok_or_else(|| err(404, "Media not found."))?;
-    remove_media(&st.db, id)?;
+    s.needs(&[perm::MANAGE_REQUESTS])?;
+    if media(&st.db, id)?.is_some() {
+        remove_media(&st.db, id)?;
+    }
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
-/// `POST /media/{id}/{status}`: set a title's availability by hand (admins); `unknown` goes back to the library's.
+/// `DELETE /media/{id}/file` (MANAGE_REQUESTS): Seerr's "Remove from Radarr/Sonarr". The movie or series leaves
+/// Marquee's library and the title is marked deleted (asking for it again starts over). Its files stay on disk
+/// until the Radarr/Sonarr port follows `deleteFiles`.
+async fn delete_media_file(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
+    s.needs(&[perm::MANAGE_REQUESTS])?;
+    let m = media(&st.db, id)?.ok_or_else(|| err(404, "Media not found"))?;
+    if let Some(lib) = availability(&st.db, &m)?.library_id {
+        if m.kind == "movie" {
+            crate::movies::remove(&st.db, lib)?;
+        } else {
+            crate::series::remove(&st.db, lib)?;
+        }
+    }
+    st.db
+        .execute("UPDATE request_media SET status_override=?, updated_at=? WHERE id=?", p![super::media_status::DELETED, stamp(), m.id])?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+/// `GET /media/{id}/watch_data` (admins): Seerr reads it from Tautulli, which Marquee doesn't connect to, so
+/// it answers Seerr's "not configured".
+async fn watch_data(s: Seerr, Path(_id): Path<i64>) -> Answer {
+    s.needs(&[perm::ADMIN])?;
+    Err(Fail(err(404, "Tautulli API not configured.")))
+}
+
+/// `POST /media/{id}/{status}` (MANAGE_REQUESTS): set a title's availability by hand. `unknown` goes back to
+/// what the library says; a word Seerr doesn't know changes nothing.
 async fn set_media_status(State(st): State<AppState>, s: Seerr, Path((id, word)): Path<(i64, String)>) -> Answer {
-    s.admin()?;
-    let m = media(&st.db, id)?.ok_or_else(|| err(404, "Media not found."))?;
-    let value: Option<i64> = match word.as_str() {
-        "available" => Some(super::media_status::AVAILABLE),
-        "partial" => Some(super::media_status::PARTIALLY_AVAILABLE),
-        "processing" => Some(super::media_status::PROCESSING),
-        "pending" => Some(super::media_status::PENDING),
-        "unknown" => None,
-        _ => return Err(Fail(err(400, "The status must be available, partial, processing, pending or unknown"))),
+    s.needs(&[perm::MANAGE_REQUESTS])?;
+    let m = media(&st.db, id)?.ok_or_else(|| err(404, "Media does not exist."))?;
+    let value: Option<Option<i64>> = match word.as_str() {
+        "available" => Some(Some(super::media_status::AVAILABLE)),
+        "partial" if m.kind == "movie" => return Err(Fail(err(400, "Only series can be set to be partially available"))),
+        "partial" => Some(Some(super::media_status::PARTIALLY_AVAILABLE)),
+        "processing" => Some(Some(super::media_status::PROCESSING)),
+        "pending" => Some(Some(super::media_status::PENDING)),
+        "unknown" => Some(None),
+        _ => None,
     };
-    st.db.execute("UPDATE request_media SET status_override=?, updated_at=? WHERE id=?", p![value, stamp(), m.id])?;
-    let m = media(&st.db, id)?.ok_or_else(|| err(404, "Media not found."))?;
+    if let Some(v) = value {
+        st.db.execute("UPDATE request_media SET status_override=?, updated_at=? WHERE id=?", p![v, stamp(), m.id])?;
+    }
+    let m = media(&st.db, id)?.ok_or_else(|| err(404, "Media does not exist."))?;
     ok(media_json(&st.db, &m, true)?)
 }
 

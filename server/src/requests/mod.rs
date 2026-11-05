@@ -19,6 +19,7 @@ pub mod discover;
 pub mod moving_in;
 pub mod notify;
 pub mod seerr;
+pub mod sliders;
 
 use crate::roles::Role;
 use crate::series::Season;
@@ -111,12 +112,13 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             anime_subtitles TEXT NOT NULL DEFAULT 'en'
         );",
     )
-    .map_err(|e| anyhow::anyhow!("The request tables can't be made: {}", e.detail))
+    .map_err(|e| anyhow::anyhow!("The request tables can't be made: {}", e.detail))?;
+    sliders::migrate(db)
 }
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
 pub fn router() -> Router<AppState> {
-    seerr::router().merge(moving_in::router())
+    seerr::router().merge(sliders::router()).merge(moving_in::router())
 }
 
 /// Every minute: approved requests whose files are all there become completed, and their people hear about it.
@@ -711,6 +713,10 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
     }
     let f = facts(st, &a.kind, a.tmdb_id).await?;
     let m = upsert_media(&st.db, &a.kind, a.tmdb_id, &f)?;
+    if m.status_override == Some(media_status::DELETED) {
+        // like Seerr, a deleted title asked for again starts over
+        st.db.execute("UPDATE request_media SET status_override=NULL WHERE id=?", p![m.id])?;
+    }
     if let Some(t) = a.tvdb_id.filter(|t| *t > 0 && m.tvdb_id.is_none()) {
         st.db.execute("UPDATE request_media SET tvdb_id=? WHERE id=?", p![t, m.id])?;
     }

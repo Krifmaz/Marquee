@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**39 done, 0 stub, 178 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**42 done, 0 stub, 175 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -49,7 +49,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/genres/tv` | ⬜ Missing | Get list of official TMDB movie genres |
 | `GET` | `/issue` | ⬜ Missing | Get all issues |
 | `POST` | `/issue` | ⬜ Missing | Create new issue |
-| `GET` | `/issue/count` | ⬜ Missing | Gets issue counts |
+| `GET` | `/issue/count` | ✅ Done | Gets issue counts |
 | `DELETE` | `/issue/{issueId}` | ⬜ Missing | Delete issue |
 | `GET` | `/issue/{issueId}` | ⬜ Missing | Get issue |
 | `POST` | `/issue/{issueId}/comment` | ⬜ Missing | Create a comment |
@@ -61,8 +61,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/languages` | ⬜ Missing | Languages supported by TMDB |
 | `GET` | `/media` | ✅ Done | Get media |
 | `DELETE` | `/media/{mediaId}` | ✅ Done | Delete media item |
-| `DELETE` | `/media/{mediaId}/file` | ⬜ Missing | Delete media file |
-| `GET` | `/media/{mediaId}/watch_data` | ⬜ Missing | Get watch data |
+| `DELETE` | `/media/{mediaId}/file` | ✅ Done | Delete media file |
+| `GET` | `/media/{mediaId}/watch_data` | ✅ Done | Get watch data |
 | `POST` | `/media/{mediaId}/{status}` | ✅ Done | Update media status |
 | `GET` | `/movie/{movieId}` | ✅ Done | Get movie details |
 | `GET` | `/movie/{movieId}/ratings` | ✅ Done | Get movie ratings |
