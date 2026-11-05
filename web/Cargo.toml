@@ -8,7 +8,7 @@ name = "marquee-web"
 description = "Marquee's web app."
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-only"
 publish = false
 
 # The kit, pinned to the same tag as server/Cargo.toml.

@@ -52,3 +52,28 @@ Desktop installers (Linux tar.gz, Windows zip, macOS dmg) build with Actions →
 from the secrets `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD`, `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD`,
 `MACOS_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`; without them the zip is unsigned and the
 dmg is signed ad hoc.
+
+## License and credits
+
+Marquee is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only).
+
+Marquee is written from scratch in Rust. These projects were used as reference only (their source, documentation
+and real API answers, to stay compatible with the tools that talk to them); no code was copied from them:
+
+| Project | License | Used for |
+| --- | --- | --- |
+| [Sonarr](https://github.com/Sonarr/Sonarr) | GPL-3.0 | the Sonarr v3 API Marquee answers (TV) |
+| [Radarr](https://github.com/Radarr/Radarr) | GPL-3.0 | the Radarr v3 API Marquee answers (movies) |
+| [Seerr](https://github.com/seerr-team/seerr) (Overseerr, Jellyseerr) | MIT | the Seerr API Marquee answers (requests) |
+| [Prowlarr](https://github.com/Prowlarr/Prowlarr) | GPL-3.0 | how Prowlarr adds Sonarr and Radarr apps and syncs indexers |
+
+Data used as it is:
+
+| Data | License | Used for |
+| --- | --- | --- |
+| [TRaSH Guides](https://github.com/TRaSH-Guides/Guides) | MIT | quality profiles, custom formats and scores, quality sizes, naming |
+| [Prowlarr indexer definitions](https://github.com/Prowlarr/Indexers) | GPL-3.0 | indexer YAML definitions |
+| [TMDB](https://www.themoviedb.org) | API terms | movie and TV metadata. This product uses the TMDB API but is not endorsed or certified by TMDB. |
+| [TheTVDB](https://thetvdb.com) | API terms | TV metadata |
+
+Built on the [Krifmaz kit](https://github.com/Krifmaz/kit) (MIT).

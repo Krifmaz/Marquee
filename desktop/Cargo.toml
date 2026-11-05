@@ -8,7 +8,7 @@ name = "marquee-desktop"
 description = "Marquee's desktop app."
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-only"
 # the update notice looks for new versions among this repository's GitHub releases
 repository = "https://github.com/Krifmaz/marquee"
 publish = false

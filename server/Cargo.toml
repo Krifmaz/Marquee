@@ -8,7 +8,7 @@ name = "marquee"
 description = "Marquee's server: the API and the web app, one binary."
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-only"
 repository = "https://github.com/Krifmaz/marquee"
 publish = false
 

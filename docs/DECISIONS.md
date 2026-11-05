@@ -8,3 +8,4 @@ One line per call that was not obvious.
 - 2026-11-05 · The template's desktop app is kept (the kit's proof app, free CI coverage); the Android app is added in its own step at the end, as the owner ordered.
 - 2026-11-05 · Prowlarr still adds Marquee as Sonarr and Radarr (goal 2, the API stays compatible), but Marquee keeps no indexers of its own: indexers Prowlarr pushes are accepted and handed to Lantern, or answered as an empty list, decided in the downloads step.
 - 2026-11-05 · The template's .gitignore only ignores /target, but each of server/, web/ and desktop/ is its own workspace with its own target/; Marquee ignores target/ everywhere. To fix in the kit (not in this session's reach).
+- 2026-11-05 · License GPL-3.0-only as the owner asked (the kit's MIT code it depends on is compatible). The original apps are reference only; data files (TRaSH Guides, indexer YAML definitions) are reused as they are and credited in README.md.
