@@ -29,9 +29,9 @@ these by hand; rerun the script in the PR that adds the route):
 
 | App | Done | Stub | Missing | Table |
 | --- | --- | --- | --- | --- |
-| Sonarr v3 | 51 | 10 | 173 | [parity/sonarr-api.md](parity/sonarr-api.md) |
-| Radarr v3 | 47 | 10 | 180 | [parity/radarr-api.md](parity/radarr-api.md) |
-| Seerr v1 | 39 | 0 | 178 | [parity/seerr-api.md](parity/seerr-api.md) |
+| Sonarr v3 | 52 | 10 | 172 | [parity/sonarr-api.md](parity/sonarr-api.md) |
+| Radarr v3 | 48 | 11 | 178 | [parity/radarr-api.md](parity/radarr-api.md) |
+| Seerr v1 | 42 | 0 | 175 | [parity/seerr-api.md](parity/seerr-api.md) |
 
 "Stub" answers a fixed empty value so clients don't fail, but does nothing yet. To rerun:
 
@@ -51,7 +51,7 @@ otherwise. Track: *Arr*.
 | Movies (movies, collections, credits, alt titles) — Radarr | 🟨 | `movies.rs`, `radarr.rs` | Collections, credits, alternative titles, movie translations, `MovieService` edge cases |
 | MetadataSource (SkyHook / TMDB) | 🟨 | `tmdb.rs` (TMDB for both) | Sonarr reads SkyHook (TVDB); Marquee uses TMDB by [decision](DECISIONS.md). Port search/lookup ranking and refresh rules |
 | SeriesStats / MovieStats | 🟨 | computed in `sonarr.rs` / `radarr.rs` | Port the stats queries (episode file counts, size on disk, percent) exactly |
-| Parser (release names, languages, scene numbering) | 🟨 | `release.rs` | Port `Parser.cs` regexes, `QualityParser`, `LanguageParser`, `SceneChecker`, daily/anime formats, parsing tests |
+| Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser` ported with its upstream test cases; `quality_tv.rs`, `quality_movie.rs`), `release.rs` | `Parser.cs`, `LanguageParser`, `ReleaseGroupParser`, `SceneChecker`, daily/anime formats |
 | DataAugmentation (scene mappings, XEM, daily series) — Sonarr | ⬜ | — | Scene mapping and XEM numbering, `DailySeries` |
 | Qualities (definitions, sizes) | ✅ | `quality.rs` | — |
 | Profiles (quality profiles, delay profiles, release profiles) | 🟨 | `quality.rs` | Delay profiles, release profiles (Sonarr), language in profiles |
@@ -78,12 +78,12 @@ otherwise. Track: *Arr*.
 | Backup | ⬜ | — | Backup and restore (one database for all of Marquee) |
 | Configuration (host, media management, UI, indexer config) | 🟨 | `/config/naming`, `/config/ui` | Media management, host, indexer, download client config endpoints |
 | Authentication, Security | ✅ | kit sign-in + API key | Forms/basic auth modes answer as Marquee's sign-in |
-| Localization | ⬜ | — | Upstream strings for the forked UI (*UI* track) |
+| Localization | 🟨 | `localization.rs` (English strings) | UI language setting, other languages |
 | Update, Lifecycle | ➖ | kit self-update | The kit's release flow replaces upstream's updater |
 | Analytics, Instrumentation | ➖ | kit crash logs | No analytics; logs through the kit |
 | MediaCover | 🟨 | TMDB image URLs | Local cover cache served at `/MediaCover` |
-| CustomFilters | ⬜ | — | Saved filters for the UI |
-| ProgressMessaging (SignalR) | ⬜ | — | The forked UI needs `/signalr` live updates (*UI* + *Arr*) |
+| CustomFilters | ✅ | `custom_filters.rs` | — |
+| ProgressMessaging (SignalR) | 🟨 | `signalr.rs` (MessageHub: negotiate, WebSockets, JSON hub protocol, version and pings) | Push every upstream event (series, episode, queue, command, health) through the hub |
 
 ## Seerr backend (`server/`)
 
@@ -91,9 +91,9 @@ Track: *Seerr*.
 
 | Module | Status | Marquee today | What is left |
 | --- | --- | --- | --- |
-| Requests (`routes/request.ts`, `entity/MediaRequest`) | 🟨 | `requests/seerr.rs`, `requests/mod.rs` | Request edits as upstream, 4K requests, override rules |
-| Media (`routes/media.ts`, `entity/Media`) | 🟨 | `requests/seerr.rs` | Watch data, media file info, 4K status |
-| Discover (`routes/discover.ts`) | 🟨 | `requests/discover.rs` | Genres, keywords, studios, networks, languages, watchlist, custom sliders (`settings/discover`) |
+| Requests (`routes/request.ts`, `entity/MediaRequest`) | 🟨 | `requests/seerr.rs`, `requests/mod.rs` (ported from `routes/request.ts`, `MediaRequest.request`, `User.getQuota`) | Override rules, blocklisted-media check (with Blocklist), upstream `canRemove` (with `DELETE /media/{id}/file`) |
+| Media (`routes/media.ts`, `entity/Media`) | 🟨 | `requests/seerr.rs` (ported from `routes/media.ts`) | Watch data (needs Tautulli; answers "not configured"), `DELETE /media/{id}/file` keeps files until the Arr port follows `deleteFiles`, per-season status body |
+| Discover (`routes/discover.ts`) | 🟨 | `requests/discover.rs`, `requests/sliders.rs` (discover rows from `settings/discover`) | Genres, keywords, studios, networks, languages, watchlist |
 | Movie, TV, person, collection details | 🟨 | movie and TV done | Person, collection, cast/crew pages, ratings from RT/IMDb as upstream |
 | Search (`routes/search.ts`) | 🟨 | `/search` | Keyword and company search |
 | Users, permissions, quotas (`routes/user`, `lib/permissions.ts`) | 🟨 | roles map to permission bits ([decision](DECISIONS.md)) | User create/import/bulk edit, per-user notification settings, linked accounts, watchlist |
