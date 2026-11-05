@@ -38,6 +38,9 @@ sealed interface Page {
 
     /** The server's checks and the phone app's crash reports (admins). */
     data object Diagnostics : Page
+
+    /** The invite links (admins). */
+    data object Invites : Page
 }
 
 /**
@@ -80,6 +83,8 @@ fun AppShell(app: App) {
         Page.ServerSettings -> ServerSettingsPage(app, onBack = back)
 
         Page.Diagnostics -> DiagnosticsPage(app, onBack = back)
+
+        Page.Invites -> InvitesPage(app, base, onBack = back)
     }
 }
 

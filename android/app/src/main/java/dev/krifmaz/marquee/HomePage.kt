@@ -49,7 +49,7 @@ import kotlinx.coroutines.withContext
 import dev.krifmaz.kit.compose.R as KitR
 
 /**
- * The More tab: the server, What's new, the admin pages, signing out, bug reports, the crash log and updates.
+ * The More tab: the server, your account, What's new, invites (admins), the admin pages, signing out, bug reports, the crash log and updates.
  *
  * @param app the app (its server, settings and calls).
  * @param base the server's address.
@@ -66,11 +66,13 @@ fun HomePage(app: App, base: String, me: Me?, bugs: BugReportsHost, open: (Page)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SectionHead(KitApp.name, subtitle = base.substringAfter("://"), action = "Change server", onAction = onChangeServer)
+        AccountSection(app, me)
 
         SectionHead("Settings")
         EntryRow("What's new", "Every release's notes") { open(Page.Changelog) }
         if (me?.admin != false) {
             EntryRow("Server settings", "The server's settings, as the web app has them") { open(Page.ServerSettings) }
+            EntryRow("Invites", "Links that let people make their own account") { open(Page.Invites) }
             EntryRow("Diagnostics", "Checks of the server and the phone app's crash reports") { open(Page.Diagnostics) }
         }
         EntryRow("Sign out", "Sign in again, as someone else or after a password change") { askSignOut = true }
