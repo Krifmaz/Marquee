@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**42 done, 0 stub, 175 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**48 done, 0 stub, 169 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -189,15 +189,15 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/tv/{tvId}/season/{seasonNumber}` | ✅ Done | Get season details and episode list |
 | `GET` | `/tv/{tvId}/similar` | ✅ Done | Get similar TV series |
 | `GET` | `/user` | ✅ Done | Get all users |
-| `POST` | `/user` | ⬜ Missing | Create new user |
-| `PUT` | `/user` | ⬜ Missing | Update batch of users |
+| `POST` | `/user` | ✅ Done | Create new user |
+| `PUT` | `/user` | ✅ Done | Update batch of users |
 | `POST` | `/user/import-from-jellyfin` | ⬜ Missing | Import all users from Jellyfin |
 | `POST` | `/user/import-from-plex` | ⬜ Missing | Import all users from Plex |
 | `GET` | `/user/jellyfin/{jellyfinUserId}` | ⬜ Missing | Get user by Jellyfin user ID |
 | `POST` | `/user/registerPushSubscription` | ⬜ Missing | Register a web push /user/registerPushSubscription |
-| `DELETE` | `/user/{userId}` | ⬜ Missing | Delete user by ID |
+| `DELETE` | `/user/{userId}` | ✅ Done | Delete user by ID |
 | `GET` | `/user/{userId}` | ✅ Done | Get user by ID |
-| `PUT` | `/user/{userId}` | ⬜ Missing | Update a user by user ID |
+| `PUT` | `/user/{userId}` | ✅ Done | Update a user by user ID |
 | `DELETE` | `/user/{userId}/pushSubscription/{endpoint}` | ⬜ Missing | Delete user push subscription by key |
 | `GET` | `/user/{userId}/pushSubscription/{endpoint}` | ⬜ Missing | Get web push notification settings for a user |
 | `GET` | `/user/{userId}/pushSubscriptions` | ⬜ Missing | Get all web push notification settings for a user |
@@ -216,8 +216,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `POST` | `/user/{userId}/settings/password` | ⬜ Missing | Update password for a user |
 | `GET` | `/user/{userId}/settings/permissions` | ✅ Done | Get permission settings for a user |
 | `POST` | `/user/{userId}/settings/permissions` | ✅ Done | Update permission settings for a user |
-| `GET` | `/user/{userId}/watch_data` | ⬜ Missing | Get watch data |
-| `GET` | `/user/{userId}/watchlist` | ⬜ Missing | Get the Plex watchlist for a specific user |
+| `GET` | `/user/{userId}/watch_data` | ✅ Done | Get watch data |
+| `GET` | `/user/{userId}/watchlist` | ✅ Done | Get the Plex watchlist for a specific user |
 | `POST` | `/watchlist` | ⬜ Missing | Add media to watchlist |
 | `DELETE` | `/watchlist/{tmdbId}` | ⬜ Missing | Delete watchlist item |
 | `GET` | `/watchproviders/movies` | ⬜ Missing | Get watch provider movies |

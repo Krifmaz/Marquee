@@ -18,7 +18,8 @@
 //! POST   /request/{id}/approve | /decline | /retry (MANAGE_REQUESTS)
 //! GET    /media?take&skip&filter&sort    DELETE /media/{id}    DELETE /media/{id}/file    GET /media/{id}/watch_data
 //! POST   /media/{id}/{available|partial|processing|pending|unknown}   (MANAGE_REQUESTS; watch_data: admins)
-//! GET    /user  /user/{id}  /user/{id}/requests  /user/{id}/quota
+//! GET    /user  /user/{id}  /user/{id}/requests  /user/{id}/quota  /user/{id}/watch_data  /user/{id}/watchlist
+//! POST   /user (MANAGE_USERS)   PUT /user (bulk permissions)   PUT /user/{id}   DELETE /user/{id}
 //! GET    /user/{id}/settings/main (POST: limits, admins; anime language, the account itself)
 //! GET    /user/{id}/settings/permissions (POST: admins)
 //! GET    /discover/movies, /discover/movies/upcoming, /discover/tv, /discover/tv/upcoming, /discover/trending
@@ -89,6 +90,8 @@ pub mod perm {
     pub const REQUEST_MOVIE: i64 = 262144;
     /// ask for TV
     pub const REQUEST_TV: i64 = 524288;
+    /// see other people's watchlists
+    pub const WATCHLIST_VIEW: i64 = 134217728;
 }
 
 /// Seerr's `hasPermission(bits, value, {type: 'or'})` for the account `u`: admins have every bit.
@@ -191,10 +194,12 @@ pub fn router() -> Router<AppState> {
         .route("/media/{id}/file", axum::routing::delete(delete_media_file))
         .route("/media/{id}/watch_data", get(watch_data))
         .route("/media/{id}/{status}", post(set_media_status))
-        .route("/user", get(list_users))
-        .route("/user/{id}", get(one_user))
+        .route("/user", get(list_users).post(create_user).put(bulk_permissions))
+        .route("/user/{id}", get(one_user).put(change_user).delete(delete_user))
         .route("/user/{id}/requests", get(user_requests))
         .route("/user/{id}/quota", get(user_quota))
+        .route("/user/{id}/watch_data", get(user_watch_data))
+        .route("/user/{id}/watchlist", get(user_watchlist))
         .route("/user/{id}/settings/main", get(main_settings).post(set_main_settings))
         .route("/user/{id}/settings/permissions", get(permissions_of).post(set_permissions))
         .route("/discover/movies", get(discover_movies))
@@ -941,12 +946,241 @@ async fn set_media_status(State(st): State<AppState>, s: Seerr, Path((id, word))
     ok(media_json(&st.db, &m, true)?)
 }
 
-/// `GET /user` (admins).
-async fn list_users(State(st): State<AppState>, s: Seerr, Query(q): Query<Paging>) -> Answer {
-    s.admin()?;
-    let rows = st.db.query("SELECT * FROM users ORDER BY id", p![])?;
-    let items = rows.iter().map(|u| user_json(&st.db, u)).collect::<kit_server_core::Result<Vec<_>>>()?;
-    ok(paged(items, &q, 10))
+/// `GET /user` query (Seerr's `routes/user/index.ts`).
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct UserQuery {
+    /// how many per page (10, or as many ids as `includeIds` names)
+    pub take: Option<usize>,
+    /// how many to skip
+    pub skip: Option<usize>,
+    /// a piece of the name or mail address
+    pub q: Option<String>,
+    /// only these accounts, `1,2,3`
+    pub include_ids: Option<String>,
+    /// `created`, `updated`, `displayname`, `requests`, `usertype`, `role`, else by id
+    pub sort: Option<String>,
+    /// `asc` or `desc` (each sort has Seerr's own default)
+    pub sort_direction: Option<String>,
+}
+
+/// An account as somebody else sees it: without the mail address, Plex id and settings unless the viewer may
+/// manage accounts or it is their own (Seerr's `User.filter`).
+fn shown_user(db: &SqliteDb, u: &Row, full: bool) -> kit_server_core::Result<Value> {
+    let mut v = user_json(db, u)?;
+    if !full {
+        if let Some(o) = v.as_object_mut() {
+            for k in ["email", "plexId", "settings"] {
+                o.remove(k);
+            }
+        }
+    }
+    Ok(v)
+}
+
+/// `GET /user`, ported from Seerr: everybody signed in may list accounts (mail addresses only for those who may
+/// manage accounts), searched, narrowed to ids and sorted like Seerr.
+async fn list_users(State(st): State<AppState>, s: Seerr, Query(q): Query<UserQuery>) -> Answer {
+    let mut ids: Vec<i64> = q.include_ids.as_deref().unwrap_or("").split(',').filter_map(|x| x.trim().parse().ok()).collect();
+    ids.dedup();
+    let needle = q.q.clone().unwrap_or_default().to_lowercase();
+    let mut rows: Vec<Row> = st
+        .db
+        .query("SELECT * FROM users", p![])?
+        .into_iter()
+        .filter(|u| needle.is_empty() || u.s("username").to_lowercase().contains(&needle) || u.s("email").to_lowercase().contains(&needle))
+        .filter(|u| ids.is_empty() || ids.contains(&u.i("id")))
+        .collect();
+    let sort = q.sort.as_deref().unwrap_or("");
+    let desc = match q.sort_direction.as_deref().map(str::to_lowercase).as_deref() {
+        Some("asc") => false,
+        Some("desc") => true,
+        _ => matches!(sort, "requests" | "updated"),
+    };
+    let requests = |u: &Row| {
+        st.db.one("SELECT COUNT(*) AS n FROM requests WHERE requested_by=?", p![u.i("id")]).ok().flatten().map_or(0, |r| r.i("n"))
+    };
+    let role_key = |u: &Row| match Role::parse(&u.s("role")) {
+        Role::Owner => 0,
+        r if r.is_admin() => 1,
+        _ => 2,
+    };
+    match sort {
+        "created" | "updated" => rows.sort_by(|a, b| a.f("created_at").total_cmp(&b.f("created_at")).then(a.i("id").cmp(&b.i("id")))),
+        "displayname" => rows.sort_by_key(|u| u.s("username").to_lowercase()),
+        "requests" => rows.sort_by_key(|u| (requests(u), u.i("id"))),
+        "role" => rows.sort_by_key(|u| (role_key(u), u.i("id"))),
+        _ => rows.sort_by_key(|u| u.i("id")),
+    }
+    if desc {
+        rows.reverse();
+    }
+    let full = s.0.has(&[perm::MANAGE_USERS]);
+    let items = rows.iter().map(|u| shown_user(&st.db, u, full)).collect::<kit_server_core::Result<Vec<_>>>()?;
+    let default_take = 10.max(ids.len());
+    ok(paged(items, &Paging { take: q.take, skip: q.skip }, default_take))
+}
+
+/// `POST /user` body.
+#[derive(Deserialize, Default)]
+pub struct NewSeerrUser {
+    /// the mail address (else the username stands in for it, like Seerr)
+    pub email: Option<String>,
+    /// the sign-in name
+    pub username: Option<String>,
+    /// the password; without one Marquee makes one and mails it, like Seerr
+    pub password: Option<String>,
+}
+
+/// `POST /user` (MANAGE_USERS): a local account with the default role ("New accounts" settings), 201. 409 when
+/// the mail address is taken; without a password one is made and mailed, which needs mail set up.
+async fn create_user(State(st): State<AppState>, s: Seerr, Json(b): Json<NewSeerrUser>) -> Answer {
+    s.needs(&[perm::MANAGE_USERS])?;
+    let email = b.email.clone().filter(|e| !e.trim().is_empty()).or(b.username.clone()).unwrap_or_default().trim().to_lowercase();
+    if email.is_empty() {
+        return Err(Fail(err(400, "Give the account a mail address or a username")));
+    }
+    if st.db.one("SELECT id FROM users WHERE LOWER(email)=?", p![email])?.is_some() {
+        return Err(Fail(err(409, "User already exists with submitted email.")));
+    }
+    let given = b.password.clone().filter(|p| !p.is_empty());
+    if given.is_none() && !crate::mail::enabled(&st) {
+        return Err(Fail(err(500, "Email notifications must be enabled")));
+    }
+    let password = given.clone().unwrap_or_else(|| crate::auth::random_token(12));
+    let username = b.username.clone().filter(|u| !u.trim().is_empty()).unwrap_or_else(|| email.clone());
+    let id = crate::users::create_account(&st, &username, &password, &email, crate::users::default_role(&st), Default::default())?;
+    if given.is_none() {
+        crate::mail::send_later(
+            &st,
+            crate::mail::Mail {
+                to: email.clone(),
+                subject: format!("Your {} account", st.app_name()),
+                text: format!(
+                    "An account was made for you.\n\nAddress: {}\nUsername: {username}\nPassword: {password}\n\nSign in and change the password in your account settings.",
+                    crate::mail::public_url(&st)
+                ),
+            },
+        );
+    }
+    tracing::info!("{} made the account '{}' through the Seerr API", s.0.row.s("username"), username.trim());
+    Ok((StatusCode::CREATED, Json(user_json(&st.db, &user(&st.db, id)?)?)).into_response())
+}
+
+/// Seerr's `canMakePermissionsChange`: only the owner may hand out ADMIN.
+fn may_grant(s: &Seerr, permissions: i64) -> std::result::Result<(), Fail> {
+    if permissions & perm::ADMIN != 0 && s.0.role != Role::Owner {
+        return Err(Fail(err(403, "You do not have permission to grant this level of access")));
+    }
+    Ok(())
+}
+
+/// Gives the account `id` the role that Seerr's `permissions` map to.
+fn set_role_bits(db: &SqliteDb, id: i64, permissions: i64) -> kit_server_core::Result<()> {
+    let (role, movies, tv) = role_of(permissions);
+    db.execute(
+        "UPDATE users SET role=?, auto_approve_movies=?, auto_approve_tv=? WHERE id=?",
+        p![role.as_str(), movies as i64, tv as i64, id],
+    )?;
+    Ok(())
+}
+
+/// `PUT /user` body.
+#[derive(Deserialize)]
+pub struct BulkPermissions {
+    /// the accounts
+    pub ids: Vec<Value>,
+    /// Seerr's permission bits for all of them
+    pub permissions: i64,
+}
+
+/// `PUT /user` (MANAGE_USERS): the same permissions for several accounts; the owner's only by the owner.
+async fn bulk_permissions(State(st): State<AppState>, s: Seerr, Json(b): Json<BulkPermissions>) -> Answer {
+    s.needs(&[perm::MANAGE_USERS])?;
+    may_grant(&s, b.permissions)?;
+    let mut out = Vec::new();
+    for id in b.ids.iter().filter_map(|v| v.as_i64().or_else(|| v.as_str().and_then(|x| x.parse().ok()))) {
+        let Some(u) = st.db.one("SELECT * FROM users WHERE id=?", p![id])? else { continue };
+        if Role::parse(&u.s("role")) == Role::Owner {
+            // the owner stays the owner: Marquee's roles have one owner
+            continue;
+        }
+        set_role_bits(&st.db, id, b.permissions)?;
+        out.push(user_json(&st.db, &user(&st.db, id)?)?);
+    }
+    ok(json!(out))
+}
+
+/// `PUT /user/{id}` body.
+#[derive(Deserialize)]
+pub struct UserChange {
+    /// a new sign-in name
+    pub username: Option<String>,
+    /// Seerr's permission bits
+    pub permissions: Option<i64>,
+}
+
+/// `PUT /user/{id}` (MANAGE_USERS): the name and permissions. Only the owner changes the owner, and only the owner
+/// hands out ADMIN.
+async fn change_user(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json(b): Json<UserChange>) -> Answer {
+    s.needs(&[perm::MANAGE_USERS])?;
+    let u = st.db.one("SELECT * FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
+    let owner = Role::parse(&u.s("role")) == Role::Owner;
+    if owner && s.0.role != Role::Owner {
+        return Err(Fail(err(403, "You do not have permission to modify this user")));
+    }
+    may_grant(&s, b.permissions.unwrap_or(0))?;
+    if let Some(name) = b.username.as_deref().map(str::trim).filter(|n| !n.is_empty() && *n != u.s("username")) {
+        if st.db.one("SELECT id FROM users WHERE username=? AND id<>?", p![name, id])?.is_some() {
+            return Err(Fail(err(409, "Another account already has that name")));
+        }
+        st.db.execute("UPDATE users SET username=? WHERE id=?", p![name, id])?;
+    }
+    if let (Some(p), false) = (b.permissions, owner) {
+        set_role_bits(&st.db, id, p)?;
+    }
+    ok(user_json(&st.db, &user(&st.db, id)?)?)
+}
+
+/// `DELETE /user/{id}` (MANAGE_USERS): removes the account everywhere (its Jellyfin user and Plex share too) with
+/// its requests; 405 for the owner, and for an admin unless the owner asks.
+async fn delete_user(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
+    s.needs(&[perm::MANAGE_USERS])?;
+    let u = st.db.one("SELECT * FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
+    let role = Role::parse(&u.s("role"));
+    if role == Role::Owner {
+        return Err(Fail(err(405, "This account cannot be deleted.")));
+    }
+    if role.is_admin() && s.0.role != Role::Owner {
+        return Err(Fail(err(405, "You cannot delete users with administrative privileges.")));
+    }
+    let shown = user_json(&st.db, &u)?;
+    let errors = crate::media_servers::account_sync::remove_everywhere(&st, id).await;
+    for e in &errors {
+        tracing::warn!("Removing {} from a media server didn't work: {e}", u.s("username"));
+    }
+    st.db.execute("DELETE FROM requests WHERE requested_by=?", p![id])?;
+    st.db.execute("DELETE FROM sessions WHERE user_id=?", p![id])?;
+    st.db.execute("DELETE FROM users WHERE id=?", p![id])?;
+    tracing::info!("{} removed the account '{}' through the Seerr API", s.0.row.s("username"), u.s("username"));
+    ok(shown)
+}
+
+/// `GET /user/{id}/watch_data` (the account or an admin): Seerr reads it from Tautulli, which Marquee doesn't
+/// connect to.
+async fn user_watch_data(s: Seerr, Path(id): Path<i64>) -> Answer {
+    if s.0.id() != id && !s.0.has(&[perm::ADMIN]) {
+        return Err(no_access());
+    }
+    Err(Fail(err(404, "Tautulli API not configured.")))
+}
+
+/// `GET /user/{id}/watchlist?page`: the account's Plex watchlist, empty until watchlist sync is ported.
+async fn user_watchlist(s: Seerr, Path(id): Path<i64>, Query(q): Query<DiscoverQuery>) -> Answer {
+    if s.0.id() != id && !s.0.has(&[perm::MANAGE_REQUESTS, perm::WATCHLIST_VIEW]) {
+        return Err(Fail(err(403, "You do not have permission to view this user's Watchlist.")));
+    }
+    ok(json!({ "page": q.page.unwrap_or(1), "totalPages": 0, "totalResults": 0, "results": [] }))
 }
 
 /// The account `id` when `s` is an admin or that account; 403 otherwise.
@@ -957,17 +1191,30 @@ fn account(st: &AppState, s: &Seerr, id: i64) -> std::result::Result<Row, Fail> 
     Ok(user(&st.db, id)?)
 }
 
-/// `GET /user/{id}`.
+/// `GET /user/{id}`: anybody signed in; the mail address only for the account itself or MANAGE_USERS.
 async fn one_user(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let u = account(&st, &s, id)?;
-    ok(user_json(&st.db, &u)?)
+    let u = st.db.one("SELECT * FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
+    ok(shown_user(&st.db, &u, s.0.id() == id || s.0.has(&[perm::MANAGE_USERS]))?)
 }
 
-/// `GET /user/{id}/requests`.
-async fn user_requests(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Query(q): Query<RequestQuery>) -> Answer {
-    account(&st, &s, id)?;
-    let list = requests_for(&st, &s, &q, Some(id))?;
-    request_page(&st, &s, list, &q, 20)
+/// `GET /user/{id}/requests`: the account's requests, newest first (yours, or anybody's with MANAGE_REQUESTS or
+/// REQUEST_VIEW).
+async fn user_requests(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Query(q): Query<Paging>) -> Answer {
+    st.db.one("SELECT id FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
+    if id != s.0.id() && !s.0.has(&[perm::MANAGE_REQUESTS, perm::REQUEST_VIEW]) {
+        return Err(Fail(err(403, "You do not have permission to view this user's requests.")));
+    }
+    let mut list: Vec<Request> = all(&st.db)?.into_iter().filter(|r| r.requested_by == id).collect();
+    list.sort_by_key(|r| std::cmp::Reverse(r.id));
+    let take = q.take.filter(|t| *t > 0).unwrap_or(20).min(1000);
+    let skip = q.skip.unwrap_or(0);
+    let total = list.len();
+    let results =
+        list.iter().skip(skip).take(take).map(|r| request_json(&st.db, r, Some(&s.0))).collect::<kit_server_core::Result<Vec<_>>>()?;
+    ok(json!({
+        "pageInfo": { "pages": total.div_ceil(take), "pageSize": take, "results": total, "page": skip.div_ceil(take) + 1 },
+        "results": results,
+    }))
 }
 
 /// One quota in Seerr's shape.
@@ -978,9 +1225,12 @@ fn quota_json(q: &super::Quota) -> Value {
     })
 }
 
-/// `GET /user/{id}/quota`.
+/// `GET /user/{id}/quota`: your own, or anybody's with MANAGE_USERS and MANAGE_REQUESTS.
 async fn user_quota(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let u = account(&st, &s, id)?;
+    if id != s.0.id() && !s.0.has_all(&[perm::MANAGE_USERS, perm::MANAGE_REQUESTS]) {
+        return Err(Fail(err(403, "You do not have permission to view this user's request limits.")));
+    }
+    let u = st.db.one("SELECT * FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
     let (m, t) = quotas(&st.db, &u)?;
     ok(json!({ "movie": quota_json(&m), "tv": quota_json(&t) }))
 }
