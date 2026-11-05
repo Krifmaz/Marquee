@@ -1,5 +1,5 @@
-//! The app's pages: sign-in, Home, Bug reports and Settings (the server's settings form, Diagnostics and
-//! What's new). Words and markup are the kit's, so the kit's stylesheet (static/css/app.css) draws them.
+//! The app's pages: sign-in, Home, Bug reports and Settings (the server's settings form, Accounts and Folders
+//! for admins, Diagnostics and What's new). Words and markup are the kit's, so the kit's stylesheet (static/css/app.css) draws them.
 
 use crate::{app_name, navigate};
 use kit_leptos::api;
@@ -152,7 +152,7 @@ pub fn BugReports() -> impl IntoView {
 
 /// `#/settings?s=<page>`: the server's settings pages from its schema, Diagnostics and What's new.
 #[component]
-pub fn Settings(page: String) -> impl IntoView {
+pub fn Settings(page: String, admin: bool) -> impl IntoView {
     let data = LocalResource::new(|| async {
         let schema = api::get("/settings/schema").await.map_err(|e| e.message)?;
         let values = api::get("/settings").await.map_err(|e| e.message)?;
@@ -168,8 +168,11 @@ pub fn Settings(page: String) -> impl IntoView {
                 _ => vec![],
             };
             let fixed = [("diagnostics".to_string(), "Diagnostics".to_string()), ("whats-new".to_string(), "What's new".to_string())];
+            let own: Vec<(String, String)> =
+                if admin { vec![("accounts".into(), "Accounts".into()), ("folders".into(), "Folders".into())] } else { vec![] };
             sections
                 .into_iter()
+                .chain(own)
                 .chain(fixed)
                 .map(|(id, title)| {
                     let on = id == page;
@@ -183,6 +186,8 @@ pub fn Settings(page: String) -> impl IntoView {
         move || match page.as_str() {
             "diagnostics" => view! { <DiagnosticsPage app=app.clone()/> }.into_any(),
             "whats-new" => view! { <ChangelogPage app=app.clone()/> }.into_any(),
+            "accounts" if admin => view! { <crate::accounts::Accounts/> }.into_any(),
+            "folders" if admin => view! { <crate::accounts::Folders/> }.into_any(),
             id => match data.get() {
                 None => view! { <div class="empty"><span class="spinner"></span></div> }.into_any(),
                 Some(Err(e)) => view! { <div class="error-box">{e}</div> }.into_any(),

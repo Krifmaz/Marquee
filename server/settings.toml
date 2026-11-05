@@ -38,3 +38,71 @@ env = "APP_API_KEY"
 default = ""
 secret = true
 help = "The server's API key (`x-api-key`): signs in as the owner. Empty: no API key."
+
+[sections.connections]
+title = "Connections"
+
+[groups.lantern]
+section = "connections"
+title = "Lantern"
+desc = "Marquee searches and downloads through Lantern. It has no download clients or indexers of its own."
+
+[keys.lantern_url]
+env = "MARQUEE_LANTERN_URL"
+default = ""
+group = "lantern"
+label = "Lantern address"
+help = "Lantern's web address as this server reaches it, for example http://lantern:8080."
+type = "text"
+
+[keys.lantern_api_key]
+env = "MARQUEE_LANTERN_API_KEY"
+default = ""
+secret = true
+group = "lantern"
+label = "Lantern API key"
+help = "Lantern → Settings → API key."
+type = "password"
+
+[groups.metadata]
+section = "connections"
+title = "Movie and TV information"
+desc = "Titles, posters and episode lists come from TMDB."
+
+[keys.tmdb_api_key]
+env = "MARQUEE_TMDB_API_KEY"
+default = ""
+secret = true
+group = "metadata"
+label = "TMDB API key"
+help = "A free key from themoviedb.org → Settings → API (the API Read Access Token or the v3 key)."
+type = "password"
+
+[groups.requests]
+section = "general"
+title = "New accounts"
+desc = "The request limits a new account starts with. Each account's own limits are under Accounts."
+
+[keys.default_role]
+env = "MARQUEE_DEFAULT_ROLE"
+default = "requester"
+group = "requests"
+label = "Role of a new account"
+type = "select"
+options = [["requester", "Can request"], ["viewer", "Read-only"]]
+
+[keys.default_movie_quota]
+env = "MARQUEE_DEFAULT_MOVIE_QUOTA"
+default = 0
+group = "requests"
+label = "Movies a week (0: no limit)"
+type = "number"
+min = 0
+
+[keys.default_tv_quota]
+env = "MARQUEE_DEFAULT_TV_QUOTA"
+default = 0
+group = "requests"
+label = "TV seasons a week (0: no limit)"
+type = "number"
+min = 0

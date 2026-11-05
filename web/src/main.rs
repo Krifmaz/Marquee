@@ -6,10 +6,11 @@
 //! | after signing in | the What's new popup, once per release |
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
-//! | `#/settings?s=<page>` | the server settings form from the server's schema, Diagnostics and What's new |
+//! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
 //!
 //! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`].
 
+mod accounts;
 mod pages;
 
 use kit_leptos::api::{self, HttpBackend};
@@ -154,10 +155,12 @@ fn Shell(me: Value) -> impl IntoView {
     rt::on_window("hashchange", move |_| set_route.set(current_route()));
     let name = app_name();
     let username = me.get("username").and_then(Value::as_str).unwrap_or("").to_string();
+    let admin = me.get("is_admin").and_then(Value::as_bool) == Some(true);
     let role = match me.get("role").and_then(Value::as_str) {
         Some("owner") => "Owner",
-        _ if me.get("is_admin").and_then(Value::as_bool) == Some(true) => "Admin",
-        _ => "Member",
+        Some("admin") => "Admin",
+        Some("viewer") => "Read-only",
+        _ => "Can request",
     };
     let sign_out = move |_| {
         rt::spawn(async {
@@ -171,7 +174,7 @@ fn Shell(me: Value) -> impl IntoView {
         let r = route.get();
         match r.path.as_str() {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
-            "/settings" => view! { <pages::Settings page=r.param("s")/> }.into_any(),
+            "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
             _ => view! { <pages::Home/> }.into_any(),
         }
     };

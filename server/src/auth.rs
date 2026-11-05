@@ -68,7 +68,7 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             username TEXT UNIQUE NOT NULL,
             email TEXT,
             password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
+            role TEXT NOT NULL DEFAULT 'requester',
             disabled INTEGER NOT NULL DEFAULT 0,
             created_at REAL
         );
@@ -80,7 +80,8 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             expires_at REAL
         );",
     )
-    .map_err(|e| anyhow::anyhow!("The database tables can't be made: {}", e.detail))
+    .map_err(|e| anyhow::anyhow!("The database tables can't be made: {}", e.detail))?;
+    crate::users::migrate(db)
 }
 
 /// A bcrypt hash of `pw` (its first 72 bytes, as bcrypt reads them).
@@ -185,6 +186,11 @@ fn ct_eq(a: &str, b: &str) -> bool {
 /// The signed-in account of a request: the API key (as the owner), an app token, else the session cookie. A cookie
 /// request that changes something must carry `X-Requested-With: <app>` (CSRF).
 pub fn signed_in(st: &AppState, parts: &Parts) -> Result<Account> {
+    signed_in_with_role(st, parts).map(|(a, _)| a)
+}
+
+/// [`signed_in`], and the account's [`Role`](crate::roles::Role).
+pub fn signed_in_with_role(st: &AppState, parts: &Parts) -> Result<(Account, crate::roles::Role)> {
     let (mut row, cookie) = user_of(st, &parts.headers)?.ok_or_else(|| err(401, "Not authenticated"))?;
     if cookie && !matches!(parts.method, Method::GET | Method::HEAD | Method::OPTIONS) {
         let ok = parts.headers.get("x-requested-with").and_then(|v| v.to_str().ok()) == Some(crate::NAME);
@@ -193,7 +199,7 @@ pub fn signed_in(st: &AppState, parts: &Parts) -> Result<Account> {
         }
     }
     row.remove("password_hash");
-    Ok(Account::from_row(&row))
+    Ok((Account::from_row(&row), crate::roles::Role::parse(&row.s("role"))))
 }
 
 /// The account these headers sign in as, and whether through the cookie; `None` when they don't.
@@ -228,7 +234,10 @@ fn user_of(st: &AppState, headers: &HeaderMap) -> Result<Option<(Row, bool)>> {
 pub async fn public_user(st: &AppState, u: &Row) -> Result<Value> {
     let mut m = u.clone();
     m.remove("password_hash");
-    m.insert("is_admin".into(), json!(matches!(u.s("role").as_str(), "admin" | "owner")));
+    let role = crate::roles::Role::parse(&u.s("role"));
+    m.insert("role".into(), json!(role.as_str()));
+    m.insert("is_admin".into(), json!(role.is_admin()));
+    m.insert("can_request".into(), json!(role.can_request()));
     m.insert("prefs".into(), st.prefs.prefs(u.i("id")).await?);
     Ok(Value::Object(m))
 }
