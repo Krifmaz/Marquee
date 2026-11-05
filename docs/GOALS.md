@@ -30,8 +30,8 @@ From the owner's message of 2026-11-05, one pull request each:
 5. Downloads through Lantern and import with hardlinks.
 6. TRaSH profiles and sync.
 7. Requests (Seerr API).
-8. Plex/Jellyfin connection and account sync.
-9. Migration from the owner's existing Sonarr, Radarr and Seerr.
+8. Plex/Jellyfin connection and account sync, with the jfa-go replacement (invites, sign-up, password reset, expiry).
+9. Migration from the owner's existing Sonarr, Radarr, Seerr and jfa-go (invites and users), each with a dry run.
 10. Android app.
 
 ## Changes since
@@ -46,6 +46,11 @@ From the owner's message of 2026-11-05, one pull request each:
   API responses) are reference only; everything is written fresh in Rust. Data files are reused directly (indexer
   YAML definitions, TRaSH Guides profiles). The repository is GPL-3.0, with the original projects and data sources
   credited in README.md.
+- 2026-11-05 · **Marquee also replaces jfa-go.** Invite links (one-time or multi-use, expiry, which libraries/servers,
+  Plex and/or Jellyfin), a public sign-up page in the Encore look, self-service password reset by email, account
+  expiry with reminders, and disabling or deleting a user everywhere at once. Marquee is the one place accounts are
+  made; it creates and updates the matching Jellyfin user (and Plex share) automatically, and the user's Jellyfin
+  password is the one they set in Marquee. Existing jfa-go invites and users are imported once, with a dry run.
 
 **v0.1.0** ships when movies, TV, downloads and the TRaSH defaults work end to end. Until then `docs/RELEASE_HOLD`
 keeps the release workflow from publishing; the v0.1.0 pull request deletes it.
