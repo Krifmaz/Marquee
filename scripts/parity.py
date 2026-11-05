@@ -12,7 +12,8 @@ path and method in the upstream API spec it looks for the matching Marquee route
 - Stub: Marquee answers it with a fixed empty answer (so clients don't fail), but does nothing yet.
 - Missing: Marquee doesn't answer it.
 
-Only the endpoint tables are written here. The module and UI tables in docs/PARITY.md are kept by hand.
+Only the endpoint tables and the counts in docs/PARITY.md's API table are written here. The module and UI
+tables in docs/PARITY.md are kept by hand.
 """
 
 import json
@@ -31,7 +32,11 @@ METHODS = ("get", "post", "put", "delete", "patch")
 ROUTE_FILES = {
     "sonarr": [("server/src/sonarr.rs", "/sonarr/api/v3"), ("server/src/arr_common.rs", "/sonarr/api/v3")],
     "radarr": [("server/src/radarr.rs", "/radarr/api/v3"), ("server/src/arr_common.rs", "/radarr/api/v3")],
-    "seerr": [("server/src/requests/seerr.rs", "/api/v1")],
+    "seerr": [
+        ("server/src/requests/seerr.rs", "/api/v1"),
+        ("server/src/requests/discover.rs", "/api/v1"),
+        ("server/src/requests/sliders.rs", "/api/v1"),
+    ],
 }
 # Routes served outside the nested v3 router (path as upstream spells it -> Marquee path).
 EXTRA = {
@@ -186,7 +191,17 @@ def main():
         if head != lock[app]["commit"]:
             sys.exit(f"{folder / app} is at {head}, but UPSTREAM.lock pins {lock[app]['commit']}. Check out that commit first.")
         c = table(app, lock, folder / app)
+        summary(app, c)
         print(f"{app}: {c['Done']} done, {c['Stub']} stub, {c['Missing']} missing")
+
+
+def summary(app, c):
+    """Rewrites this app's counts in the API endpoints table of docs/PARITY.md (the row naming its table file)."""
+    path = ROOT / "docs" / "PARITY.md"
+    text = path.read_text()
+    row = re.compile(r"^\| ([^|]+) \| \d+ \| \d+ \| \d+ \| (\[parity/" + app + r"-api\.md\].*)$", re.M)
+    text = row.sub(lambda m: f"| {m.group(1)} | {c['Done']} | {c['Stub']} | {c['Missing']} | {m.group(2)}", text)
+    path.write_text(text)
 
 
 if __name__ == "__main__":

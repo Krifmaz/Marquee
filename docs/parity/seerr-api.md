@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**42 done, 0 stub, 175 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**64 done, 0 stub, 153 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -30,21 +30,21 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/certifications/movie` | ⬜ Missing | Get movie certifications |
 | `GET` | `/certifications/tv` | ⬜ Missing | Get TV certifications |
 | `GET` | `/collection/{collectionId}` | ⬜ Missing | Get collection details |
-| `GET` | `/discover/genreslider/movie` | ⬜ Missing | Get genre slider data for movies |
-| `GET` | `/discover/genreslider/tv` | ⬜ Missing | Get genre slider data for TV series |
-| `GET` | `/discover/keyword/{keywordId}/movies` | ⬜ Missing | Get movies from keyword |
+| `GET` | `/discover/genreslider/movie` | ✅ Done | Get genre slider data for movies |
+| `GET` | `/discover/genreslider/tv` | ✅ Done | Get genre slider data for TV series |
+| `GET` | `/discover/keyword/{keywordId}/movies` | ✅ Done | Get movies from keyword |
 | `GET` | `/discover/movies` | ✅ Done | Discover movies |
-| `GET` | `/discover/movies/genre/{genreId}` | ⬜ Missing | Discover movies by genre |
-| `GET` | `/discover/movies/language/{language}` | ⬜ Missing | Discover movies by original language |
-| `GET` | `/discover/movies/studio/{studioId}` | ⬜ Missing | Discover movies by studio |
+| `GET` | `/discover/movies/genre/{genreId}` | ✅ Done | Discover movies by genre |
+| `GET` | `/discover/movies/language/{language}` | ✅ Done | Discover movies by original language |
+| `GET` | `/discover/movies/studio/{studioId}` | ✅ Done | Discover movies by studio |
 | `GET` | `/discover/movies/upcoming` | ✅ Done | Upcoming movies |
 | `GET` | `/discover/trending` | ✅ Done | Trending movies and TV |
 | `GET` | `/discover/tv` | ✅ Done | Discover TV shows |
-| `GET` | `/discover/tv/genre/{genreId}` | ⬜ Missing | Discover TV shows by genre |
-| `GET` | `/discover/tv/language/{language}` | ⬜ Missing | Discover TV shows by original language |
-| `GET` | `/discover/tv/network/{networkId}` | ⬜ Missing | Discover TV shows by network |
+| `GET` | `/discover/tv/genre/{genreId}` | ✅ Done | Discover TV shows by genre |
+| `GET` | `/discover/tv/language/{language}` | ✅ Done | Discover TV shows by original language |
+| `GET` | `/discover/tv/network/{networkId}` | ✅ Done | Discover TV shows by network |
 | `GET` | `/discover/tv/upcoming` | ✅ Done | Discover Upcoming TV shows |
-| `GET` | `/discover/watchlist` | ⬜ Missing | Get the Plex watchlist. |
+| `GET` | `/discover/watchlist` | ✅ Done | Get the Plex watchlist. |
 | `GET` | `/genres/movie` | ⬜ Missing | Get list of official TMDB movie genres |
 | `GET` | `/genres/tv` | ⬜ Missing | Get list of official TMDB movie genres |
 | `GET` | `/issue` | ⬜ Missing | Get all issues |
@@ -98,12 +98,12 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/settings/cache` | ⬜ Missing | Get a list of active caches |
 | `POST` | `/settings/cache/dns/{dnsEntry}/flush` | ⬜ Missing | Flush a specific DNS cache entry |
 | `POST` | `/settings/cache/{cacheId}/flush` | ⬜ Missing | Flush a specific cache |
-| `GET` | `/settings/discover` | ⬜ Missing | Get all discover sliders |
-| `POST` | `/settings/discover` | ⬜ Missing | Batch update all sliders. |
-| `POST` | `/settings/discover/add` | ⬜ Missing | Add a new slider |
-| `GET` | `/settings/discover/reset` | ⬜ Missing | Reset all discover sliders |
-| `DELETE` | `/settings/discover/{sliderId}` | ⬜ Missing | Delete slider by ID |
-| `PUT` | `/settings/discover/{sliderId}` | ⬜ Missing | Update a single slider |
+| `GET` | `/settings/discover` | ✅ Done | Get all discover sliders |
+| `POST` | `/settings/discover` | ✅ Done | Batch update all sliders. |
+| `POST` | `/settings/discover/add` | ✅ Done | Add a new slider |
+| `GET` | `/settings/discover/reset` | ✅ Done | Reset all discover sliders |
+| `DELETE` | `/settings/discover/{sliderId}` | ✅ Done | Delete slider by ID |
+| `PUT` | `/settings/discover/{sliderId}` | ✅ Done | Update a single slider |
 | `POST` | `/settings/initialize` | ⬜ Missing | Initialize application |
 | `GET` | `/settings/jellyfin` | ⬜ Missing | Get Jellyfin settings |
 | `POST` | `/settings/jellyfin` | ⬜ Missing | Update Jellyfin settings |
@@ -189,15 +189,15 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/tv/{tvId}/season/{seasonNumber}` | ✅ Done | Get season details and episode list |
 | `GET` | `/tv/{tvId}/similar` | ✅ Done | Get similar TV series |
 | `GET` | `/user` | ✅ Done | Get all users |
-| `POST` | `/user` | ⬜ Missing | Create new user |
-| `PUT` | `/user` | ⬜ Missing | Update batch of users |
+| `POST` | `/user` | ✅ Done | Create new user |
+| `PUT` | `/user` | ✅ Done | Update batch of users |
 | `POST` | `/user/import-from-jellyfin` | ⬜ Missing | Import all users from Jellyfin |
 | `POST` | `/user/import-from-plex` | ⬜ Missing | Import all users from Plex |
 | `GET` | `/user/jellyfin/{jellyfinUserId}` | ⬜ Missing | Get user by Jellyfin user ID |
 | `POST` | `/user/registerPushSubscription` | ⬜ Missing | Register a web push /user/registerPushSubscription |
-| `DELETE` | `/user/{userId}` | ⬜ Missing | Delete user by ID |
+| `DELETE` | `/user/{userId}` | ✅ Done | Delete user by ID |
 | `GET` | `/user/{userId}` | ✅ Done | Get user by ID |
-| `PUT` | `/user/{userId}` | ⬜ Missing | Update a user by user ID |
+| `PUT` | `/user/{userId}` | ✅ Done | Update a user by user ID |
 | `DELETE` | `/user/{userId}/pushSubscription/{endpoint}` | ⬜ Missing | Delete user push subscription by key |
 | `GET` | `/user/{userId}/pushSubscription/{endpoint}` | ⬜ Missing | Get web push notification settings for a user |
 | `GET` | `/user/{userId}/pushSubscriptions` | ⬜ Missing | Get all web push notification settings for a user |
@@ -216,8 +216,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `POST` | `/user/{userId}/settings/password` | ⬜ Missing | Update password for a user |
 | `GET` | `/user/{userId}/settings/permissions` | ✅ Done | Get permission settings for a user |
 | `POST` | `/user/{userId}/settings/permissions` | ✅ Done | Update permission settings for a user |
-| `GET` | `/user/{userId}/watch_data` | ⬜ Missing | Get watch data |
-| `GET` | `/user/{userId}/watchlist` | ⬜ Missing | Get the Plex watchlist for a specific user |
+| `GET` | `/user/{userId}/watch_data` | ✅ Done | Get watch data |
+| `GET` | `/user/{userId}/watchlist` | ✅ Done | Get the Plex watchlist for a specific user |
 | `POST` | `/watchlist` | ⬜ Missing | Add media to watchlist |
 | `DELETE` | `/watchlist/{tmdbId}` | ⬜ Missing | Delete watchlist item |
 | `GET` | `/watchproviders/movies` | ⬜ Missing | Get watch provider movies |
