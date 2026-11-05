@@ -7,7 +7,13 @@
 //! | `Qualities/*`, `MediaFiles/MediaFileExtensions` | [`quality`] |
 //! | Sonarr `Parser/QualityParser` | [`quality_tv`] |
 //! | Radarr `Parser/QualityParser` | [`quality_movie`] |
+//! | `Languages/Language`, `Parser/IsoLanguage(s)`, subtitle half of `Parser/LanguageParser` | [`language`] |
+//! | Sonarr `Parser/LanguageParser.ParseLanguages` | [`language_tv`] |
+//! | Radarr `Parser/LanguageParser.ParseLanguages` | [`language_movie`] |
 
+pub mod language;
+pub mod language_movie;
+pub mod language_tv;
 pub mod net_regex;
 pub mod quality;
 pub mod quality_movie;

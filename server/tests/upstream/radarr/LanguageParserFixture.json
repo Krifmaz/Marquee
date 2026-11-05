@@ -1,0 +1,792 @@
+{
+ "should_parse_language_english": [
+  [
+   "Movie.Title.1994.English.1080p.XviD-LOL"
+  ],
+  [
+   "Movie Title 1994 Eng 1080p XviD-GROUP"
+  ],
+  [
+   "Movie Title 1994 EN 1080p XviD-GROUP"
+  ]
+ ],
+ "should_parse_language_unknown": [
+  [
+   "The Danish Movie 2015"
+  ],
+  [
+   "Movie.Title.2018.2160p.WEBRip.x265.10bit.HDR.DD5.1-GASMASK"
+  ],
+  [
+   "Movie.Title.2010.720p.BluRay.x264.-[YTS.LT]"
+  ],
+  [
+   "Movie.Title.2010.SUBFRENCH.1080p.WEB.x264-GROUP"
+  ],
+  [
+   "Movie.Title.2010.En.1080p.WEB.x264-GROUP"
+  ]
+ ],
+ "should_parse_subtitle_language_english": [
+  [
+   "Movie Title - 2022.en.sub"
+  ],
+  [
+   "Movie Title - 2022.EN.sub"
+  ],
+  [
+   "Movie Title - 2022.eng.sub"
+  ],
+  [
+   "Movie Title - 2022.ENG.sub"
+  ],
+  [
+   "Movie Title - 2022.English.sub"
+  ],
+  [
+   "Movie Title - 2022.english.sub"
+  ],
+  [
+   "Movie Title - 2022.en.cc.sub"
+  ],
+  [
+   "Movie Title - 2022.en.sdh.sub"
+  ],
+  [
+   "Movie Title - 2022.en.forced.sub"
+  ],
+  [
+   "Movie Title - 2022.en.sdh.forced.sub"
+  ]
+ ],
+ "should_parse_language_french": [
+  [
+   "Movie.Title.1994.French.1080p.XviD-LOL"
+  ],
+  [
+   "Movie Title : Other Title 2011 AVC.1080p.Blu-ray HD.VOSTFR.VFF"
+  ],
+  [
+   "Movie Title - Other Title 2011 Bluray 4k HDR HEVC AC3 VFF"
+  ],
+  [
+   "Movie Title  2019 AVC.1080p.Blu-ray Remux HD.VOSTFR.VFF"
+  ],
+  [
+   "Movie Title  : Other Title 2010 x264.720p.Blu-ray Rip HD.VOSTFR.VFF. ONLY"
+  ],
+  [
+   "Movie Title  2019 HEVC.2160p.Blu-ray 4K.VOSTFR.VFF. JATO"
+  ],
+  [
+   "Movie.Title.1956.MULTi.VF.Bluray.1080p.REMUX.AC3.x264"
+  ],
+  [
+   "Movie.Title.2016.ENG-ITA-FRA.AAC.1080p.WebDL.x264"
+  ],
+  [
+   "Movie Title 2016 (BDrip 1080p ENG-ITA-FRA) Multisub x264"
+  ],
+  [
+   "Movie.Title.2016.ENG-ITA-FRE.AAC.1080p.WebDL.x264"
+  ],
+  [
+   "Movie Title 2016 (BDrip 1080p ENG-ITA-FRE) Multisub x264"
+  ]
+ ],
+ "should_parse_language_french_english": [
+  [
+   "Movie 1990 1080p Eng Fra [mkvonly]"
+  ],
+  [
+   "Movie Directory 25 Anniversary 1990 Eng Fre Multi Subs 720p [H264 mp4]"
+  ],
+  [
+   "Foreign-Words-Here-Movie-(1990)-[DVDRip]-H264-Fra-Ac3-2-0-Eng-5-1"
+  ]
+ ],
+ "should_parse_language_spanish": [
+  [
+   "Movie.Title.1994.Spanish.1080p.XviD-LOL"
+  ],
+  [
+   "Movie Title (2020)[BDRemux AVC 1080p][E-AC3 DD Plus 5.1 Castellano-Inglés Subs]"
+  ],
+  [
+   "Movie Title (2020) [UHDRemux2160p HDR][DTS-HD MA 5.1 AC3 5.1 Castellano - True-HD 7.1 Atmos Inglés Subs]"
+  ],
+  [
+   "Movie Title (2016) [UHDRemux 2160p SDR] [Castellano DD 5.1 - Inglés DTS-HD MA 5.1 Subs]"
+  ],
+  [
+   "Movie Title 2022 [HDTV 720p][Cap.101][AC3 5.1 Castellano][www.pctnew.ORG]"
+  ],
+  [
+   "Movie Title 2022 [HDTV 720p][Cap.206][AC3 5.1 Español Castellano]"
+  ],
+  [
+   "Movie Title 2022 [Remux-1080p 8-bit h264 DTS-HD MA 2.0][ES.EN]-HiFi"
+  ],
+  [
+   "Movie Title 2022 [BDRemux 1080p AVC ES DTS-HD MA 5.1 Subs][HDO].mkv"
+  ],
+  [
+   "Movie.Name.2022.BluRay.1080p.H264.DTS[EN+ES].[EN+ES+IT]"
+  ]
+ ],
+ "should_parse_language_german": [
+  [
+   "Movie.Title.1994.German.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2016.GERMAN.DUBBED.WS.WEBRiP.XviD.REPACK-TVP"
+  ],
+  [
+   "Movie Title 2016 - Kampfhaehne - mkv - by Videomann"
+  ],
+  [
+   "Movie.Title.2016.Ger.Dub.AAC.1080p.WebDL.x264-TKP21"
+  ],
+  [
+   "Movie.Title.2016.Ger.AAC.1080p.WebDL.x264-TKP21"
+  ],
+  [
+   "Movie.Title.2016.Hun/Ger/Ita.AAC.1080p.WebDL.x264-TKP21"
+  ],
+  [
+   "Movie.Title.2016.1080p.10Bit.HEVC.WEBRip.HIN-ENG-GER.DD5.1.H.265"
+  ],
+  [
+   "Movie.Title.2016.HU-IT-DE.AAC.1080p.WebDL.x264"
+  ],
+  [
+   "Movie.Title.2016.SwissGerman.WEB-DL.h264-RlsGrp"
+  ]
+ ],
+ "should_parse_language_italian": [
+  [
+   "Movie.Title.1994.Italian.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2016.ENG-FRE-ITA.AAC.1080p.WebDL.x264"
+  ],
+  [
+   "Movie Title 2016 (BDrip 1080p ENG-FRE-ITA) Multisub x264"
+  ]
+ ],
+ "should_parse_language_danish": [
+  [
+   "Movie.Title.1994.Danish.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_dutch": [
+  [
+   "Movie.Title.1994.Dutch.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_japanese": [
+  [
+   "Movie.Title.1994.Japanese.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title (1988) 2160p HDR 5.1 Eng - Jap x265 10bit"
+  ],
+  [
+   "Movie Title (1985) (1080p.AC3 ITA-ENG-JAP)"
+  ]
+ ],
+ "should_parse_language_icelandic": [
+  [
+   "Movie.Title.1994.Icelandic.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_chinese": [
+  [
+   "Movie.Title.1994.Chinese.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_russian": [
+  [
+   "Movie.Title.1994.Russian.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2020.WEB-DLRip.AVC.AC3.EN.RU.ENSub.RUSub-LOL"
+  ],
+  [
+   "Movie Title (2020) WEB-DL (720p) Rus-Eng"
+  ]
+ ],
+ "should_parse_language_romanian": [
+  [
+   "Movie.Title.1994.Romanian.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.1080p.XviD.RoDubbed-LOL"
+  ]
+ ],
+ "should_parse_language_hindi": [
+  [
+   "Movie.Title.1994.Hindi.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_thai": [
+  [
+   "Movie.Title.1994.Thai.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_bulgarian": [
+  [
+   "Movie.Title.1994.Bulgarian.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.BGAUDIO.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.BG.AUDIO.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_brazilian_portuguese": [
+  [
+   "Movie.Title.1994.Dublado.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2.2019.1080p.Bluray.Dublado.WWW.TPF.GRATIS"
+  ],
+  [
+   "Movie.Title.2014.1080p.Bluray.Brazilian.WWW.TPF.GRATIS"
+  ],
+  [
+   "Movie.Title.2014.1080p.AMZN.WEB-DL.DDP2.0.H.264.pt-BR.ENG-LCD"
+  ]
+ ],
+ "should_parse_language_polish": [
+  [
+   "Movie.Title.1994.Polish.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PL.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PLDUB.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.DUBPL.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PL-DUB.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.DUB-PL.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PLLEK.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.LEKPL.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PL-LEK.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_polish_subbed": [
+  [
+   "Movie.Title.1994.PL-SUB.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.PLSUB.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.SUB-PL.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_vietnamese": [
+  [
+   "Movie.Title.1994.Vietnamese.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.VIE.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_swedish": [
+  [
+   "Movie.Title.1994.Swedish.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_norwegian": [
+  [
+   "Movie.Title.1994.Norwegian.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_finnish": [
+  [
+   "Movie.Title.1994.Finnish.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_turkish": [
+  [
+   "Movie.Title.1994.Turkish.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_portuguese": [
+  [
+   "Movie.Title.1994.Portuguese.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_flemish": [
+  [
+   "Movie.Title.1994.Flemish.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_greek": [
+  [
+   "Movie.Title.1994.Greek.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_korean": [
+  [
+   "Movie.Title.1994.Korean.1080p.XviD-LOL"
+  ],
+  [
+   "Movie Title [2006] BDRip 720p [Kor Rus] GROUP"
+  ],
+  [
+   "Movie.Title.2019.KOR.1080p.HDRip.H264.AAC-GROUP"
+  ]
+ ],
+ "should_parse_language_hungarian": [
+  [
+   "Movie.Title.1994.Hungarian.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_hebrew": [
+  [
+   "Movie.Title.1994.Hebrew.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.1994.1080p.BluRay.HebDubbed.Also.English.x264-P2P"
+  ]
+ ],
+ "should_parse_language_lithuanian": [
+  [
+   "Movie.Title.1994.AC3.LT.EN-CNN"
+  ]
+ ],
+ "should_parse_language_czech": [
+  [
+   "Movie.Title.1994.CZ.1080p.XviD-LOL"
+  ]
+ ],
+ "should_parse_language_arabic": [
+  [
+   "Movie.Title.2019.ARABIC.WEBRip.x264-VXT"
+  ]
+ ],
+ "should_parse_language_ukrainian": [
+  [
+   "Movie.Title [1989, BDRip] MVO + DVO + UKR (MVO) + Sub"
+  ],
+  [
+   "Movie.Title (2006) BDRemux 1080p 2xUkr | Sub Ukr"
+  ],
+  [
+   "Movie.Title [1984, BDRip 720p] MVO + MVO + Dub + AVO + 3xUkr"
+  ],
+  [
+   "Movie.Title.2019.UKRAINIAN.WEBRip.x264-VXT"
+  ]
+ ],
+ "should_parse_language_ukrainian_multi": [
+  [
+   "Movie.Title [1937, BDRip 1080p] Dub UKR/Eng + Sub rus"
+  ],
+  [
+   "Movie.Title.[2003.BDRemux.1080p].Dub.MVO.(2xUkr/Fra).Sub.(Rus/Fra)"
+  ]
+ ],
+ "should_parse_language_persian": [
+  [
+   "Movie.Title.2019.PERSIAN.WEBRip.x264-VXT"
+  ]
+ ],
+ "should_parse_language_bengali": [
+  [
+   "Movie.Title.2019.BENGALI.WEBRip.x264-VXT"
+  ]
+ ],
+ "should_parse_language_telugu": [
+  [
+   "Movie Title (2018) Telugu DVDScr X264 AAC 700 MB"
+  ],
+  [
+   "Movie.Title.2022.Tel.WEBRip.x264-VXT"
+  ],
+  [
+   "Movie Title (2019) Proper HDRip - 720p - x264 - HQ Line Auds - [Telugu + Tamil + Hindi + English] - 1.1GB"
+  ]
+ ],
+ "should_parse_language_slovak": [
+  [
+   "Movie.Title.1994.HDTV.x264.SK-iCZi"
+  ],
+  [
+   "Movie.Title.2019.1080p.HDTV.x265.iNTERNAL.SK-iCZi"
+  ],
+  [
+   "Movie.Title.2018.SLOVAK.DUAL.2160p.UHD.BluRay.x265-iCZi"
+  ],
+  [
+   "Movie.Title.1990.SLOVAK.HDTV.x264-iCZi"
+  ]
+ ],
+ "should_parse_language_latvian": [
+  [
+   "Movie.Title.2022.LV.WEBRip.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2022.lv.WEBRip.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2022.LATVIAN.WEBRip.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2022.Latvian.WEBRip.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2022.1080p.WEB-DL.DDP5.1.Atmos.H.264.Lat.Eng"
+  ],
+  [
+   "Movie.Title.2022.1080p.WEB-DL.LAV.RUS-NPPK"
+  ]
+ ],
+ "should_parse_language_spanish_latino": [
+  [
+   "Movie.Title.2019.720p_Eng-Spa(Latino)_MovieClubMx"
+  ],
+  [
+   "Movie.Title.1.WEB-DL.720p.Complete.Latino.YG"
+  ],
+  [
+   "Movie.Title.1080p.WEB.H264.Latino.YG"
+  ],
+  [
+   "Movie Title latino"
+  ],
+  [
+   "Movie Title (Temporada 11 Completa) Audio Dual Ingles/Latino 1920x1080"
+  ],
+  [
+   "Movie title 7x4 audio latino"
+  ]
+ ],
+ "should_parse_language_catalan": [
+  [
+   "Movie.Title.1994.Catalan.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.2024.Catalán.1080p.XviD-LOL"
+  ],
+  [
+   "Movie.Title.(2024).(Catala.Spanish.Subs).WEBRip.1080p.x264-EAC3"
+  ],
+  [
+   "Movie.Title.(2024).(Spanish.Catala.English.Subs).BDRip.1080p.x264-EAC3"
+  ],
+  [
+   "Movie Title [2024] [BDrip 1080p-x264-AC3 5.1 català-español-english+sub]"
+  ]
+ ],
+ "should_parse_language_malayalam": [
+  [
+   "Movie Title (2024) Malayalam BRRip 1080p x264 DTS 5.1 E-subs-MBRHDRG"
+  ],
+  [
+   "Movie.Title.2024.Malayalam.1080p.AMZN.WEB-DL.DD+5.1.H.264-Shadow.BonsaiHD"
+  ],
+  [
+   "Movie.Title.2024.2160p.Malayalam.WEB-DL.H.265.SDR.DDP5.1-NbT"
+  ]
+ ],
+ "should_parse_language_kannada": [
+  [
+   "Movie Title (2024) Kannada 1080p HD AVC MP4 x264 .9.8GB TEAMTR"
+  ],
+  [
+   "Movie.Title.2024.Kannada.1080p.AMZN.WEB-DL.DD+2.0.x264-Telly"
+  ]
+ ],
+ "should_parse_language_albanian": [
+  [
+   "Movie Title (2024) Albanian 1080p HD AVC MP4 x264 .9.8GB TEAMTR"
+  ],
+  [
+   "Movie.Title.2024.Albanian.1080p.AMZN.WEB-DL.DD+2.0.x264-Telly"
+  ]
+ ],
+ "should_parse_language_afrikaans": [
+  [
+   "Movie Title (2024) Afrikaans 1080p HD AVC MP4 x264 .9.8GB TEAMTR"
+  ],
+  [
+   "Movie.Title.2024.Afrikaans.1080p.AMZN.WEB-DL.DD+2.0.x264-Telly"
+  ]
+ ],
+ "should_parse_language_marathi": [
+  [
+   "Movie Title 2015 Marathi 1080p WebRip x264 AC3 5.1 ESubs [TMB]"
+  ],
+  [
+   "Movie.Title.(2018).720p.CensorRip.Marathi.x264.AAC.-.LHDm@Telly"
+  ]
+ ],
+ "should_parse_language_tagalog": [
+  [
+   "Movie Title 2024 1080p Tagalog WEB-DL HEVC x265 BONE"
+  ],
+  [
+   "Movie.Title.2022.720p.Tagalog.WEB-DL.AAC.x264-Mkvking"
+  ]
+ ],
+ "should_parse_language_urdu": [
+  [
+   "Movie Title 2024 1080p Urdu WEB-DL HEVC x265 BONE"
+  ],
+  [
+   "Movie.Title.2022.720p.Urdu.WEB-DL.AAC.x264-Mkvking"
+  ]
+ ],
+ "should_parse_language_romansh": [
+  [
+   "The.Movie.Name.2016.Romansh.WEB-DL.h264-RlsGrp"
+  ],
+  [
+   "The.Movie.Name.2016.Rumantsch.WEB.DL.h264-RlsGrp"
+  ],
+  [
+   "The Movie Name 2016 Romansch WEB DL h264-RlsGrp"
+  ]
+ ],
+ "should_parse_language_mongolian": [
+  [
+   "Movie.Title.2025.Mongolian.WEB-DL.h264"
+  ],
+  [
+   "Movie.Title.2025.Khalkha.WEB-DL.h264"
+  ]
+ ],
+ "should_parse_language_georgian": [
+  [
+   "Movie.Title.1994.Georgian.WEB-DL.h264"
+  ],
+  [
+   "Movie.Title.2016.Geo.WEB-DL.h264"
+  ],
+  [
+   "Movie.Title.2016.KA.WEB-DL.h264"
+  ],
+  [
+   "Movie.Title.2016.RU-KA.WEB-DL.h264"
+  ]
+ ],
+ "should_parse_subtitle_language": [
+  [
+   "Movie.Title.en.sub"
+  ],
+  [
+   "Movie Title.eng.sub"
+  ],
+  [
+   "Movie.Title.eng.forced.sub"
+  ],
+  [
+   "Movie-Title-eng-forced.sub"
+  ]
+ ],
+ "should_parse_subtitle_language_unknown": [
+  [
+   "Movie Title.sub"
+  ]
+ ],
+ "should_add_original_language_to_german_release_with_dl_tag": [
+  [
+   "The.Movie.Name.2016.German.DTS.DL.720p.BluRay.x264-RlsGrp"
+  ]
+ ],
+ "should_not_add_original_language_to_german_release_when_title_contains_web_dl": [
+  [
+   "The.Movie.Name.2016.GERMAN.WEB-DL.h264-RlsGrp"
+  ],
+  [
+   "The.Movie.Name.2016.GERMAN.WEB.DL.h264-RlsGrp"
+  ],
+  [
+   "The Movie Name 2016 GERMAN WEB DL h264-RlsGrp"
+  ],
+  [
+   "The.Movie.Name.2016.GERMAN.WEBDL.h264-RlsGrp"
+  ]
+ ],
+ "should_parse_original_title_from_release_name": [
+  [
+   "Movie.Title.2025.Original.1080P.WEB.H264-RlsGrp"
+  ],
+  [
+   "Movie.Title.2025.Orig.1080P.WEB.H264-RlsGrp"
+  ],
+  [
+   "Movie Title 2025 [HEVC, HDR10, Dolby Vision, WEB-DL 2160p] [Hybrid] 3 XX + Original"
+  ]
+ ],
+ "should_add_original_language_and_english_to_german_release_with_ml_tag": [
+  [
+   "The.Movie.Name.2023.German.ML.EAC3.720p.NF.WEB.H264-RlsGrp"
+  ]
+ ],
+ "should_parse_title_and_tags": [
+  [
+   "Name (2020) - [AAC 2.0].testtitle.default.eng.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].eng.default.testtitle.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].default.eng.testtitle.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].testtitle.forced.eng.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].eng.forced.testtitle.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].forced.eng.testtitle.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].testtitle.default.fra.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].fra.default.testtitle.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].default.fra.testtitle.forced.ass",
+   [
+    "default",
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].testtitle.forced.fra.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].fra.forced.testtitle.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].forced.fra.testtitle.ass",
+   [
+    "forced"
+   ],
+   "testtitle",
+   "French"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].ru-something-else.srt",
+   [],
+   "something-else",
+   "Russian"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].Full Subtitles.eng.ass",
+   [],
+   "Full Subtitles",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].mytitle - 1.en.ass",
+   [],
+   "mytitle",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].mytitle 1.en.ass",
+   [],
+   "mytitle 1",
+   "English"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].mytitle.en.ass",
+   [],
+   "mytitle",
+   "English"
+  ]
+ ],
+ "should_not_parse_false_title": [
+  [
+   "Name (2020) - [AAC 2.0].default.forced.ass"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].default.ass"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].ass"
+  ],
+  [
+   "Name (2020) - [AAC 2.0].testtitle.ass"
+  ]
+ ]
+}

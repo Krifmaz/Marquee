@@ -1,0 +1,51 @@
+{
+ "should_return_iso_language_for_English": [
+  [
+   "en"
+  ],
+  [
+   "eng"
+  ],
+  [
+   "en-US"
+  ],
+  [
+   "en-GB"
+  ]
+ ],
+ "unknown_or_invalid_code_should_return_null": [
+  [
+   "enus"
+  ],
+  [
+   "enusa"
+  ],
+  [
+   "wo"
+  ],
+  [
+   "fr-CA"
+  ]
+ ],
+ "should_return_portuguese": [
+  [
+   "pt"
+  ],
+  [
+   "por"
+  ],
+  [
+   "pt-PT"
+  ]
+ ],
+ "should_not_return_portuguese": [
+  [
+   "de-AU"
+  ]
+ ],
+ "should_lookup_cze_via_alternate_iso_code_mapping": [
+  [
+   "cze"
+  ]
+ ]
+}

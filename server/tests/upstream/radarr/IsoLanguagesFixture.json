@@ -1,0 +1,157 @@
+{
+ "should_return_iso_language_for_English": [
+  [
+   "en"
+  ],
+  [
+   "eng"
+  ],
+  [
+   "en-US"
+  ],
+  [
+   "en-GB"
+  ]
+ ],
+ "unknown_or_invalid_code_should_return_null": [
+  [
+   "enus"
+  ],
+  [
+   "enusa"
+  ],
+  [
+   "wo"
+  ],
+  [
+   "fr-CA"
+  ]
+ ],
+ "should_return_portuguese": [
+  [
+   "pt"
+  ],
+  [
+   "por"
+  ],
+  [
+   "pt-PT"
+  ]
+ ],
+ "should_not_return_portuguese": [
+  [
+   "de-AU"
+  ]
+ ],
+ "should_return_telugu": [
+  [
+   "te"
+  ],
+  [
+   "tel"
+  ],
+  [
+   "te-IN"
+  ]
+ ],
+ "should_return_afrikaans": [
+  [
+   "af"
+  ],
+  [
+   "afr"
+  ],
+  [
+   "af-ZA"
+  ]
+ ],
+ "should_return_marathi": [
+  [
+   "mr"
+  ],
+  [
+   "mar"
+  ],
+  [
+   "mr-IN"
+  ]
+ ],
+ "should_return_tagalog": [
+  [
+   "tl"
+  ],
+  [
+   "tgl"
+  ],
+  [
+   "tl-PH"
+  ]
+ ],
+ "should_return_urdu": [
+  [
+   "ur"
+  ],
+  [
+   "urd"
+  ],
+  [
+   "ur-PK"
+  ]
+ ],
+ "should_return_romansh": [
+  [
+   "rm"
+  ],
+  [
+   "roh"
+  ],
+  [
+   "rm-CH"
+  ]
+ ],
+ "should_return_mongolian": [
+  [
+   "mn"
+  ],
+  [
+   "mon"
+  ],
+  [
+   "khk"
+  ],
+  [
+   "mvf"
+  ],
+  [
+   "mn-Cyrl"
+  ]
+ ],
+ "should_return_bengali": [
+  [
+   "bn"
+  ],
+  [
+   "ben"
+  ],
+  [
+   "bn-BD"
+  ],
+  [
+   "bn-IN"
+  ]
+ ],
+ "should_return_georgian": [
+  [
+   "ka"
+  ],
+  [
+   "geo"
+  ],
+  [
+   "kat"
+  ],
+  [
+   "ka-GE"
+  ]
+ ]
+}
