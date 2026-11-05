@@ -29,11 +29,12 @@ these by hand; rerun the script in the PR that adds the route):
 
 | App | Done | Stub | Missing | Table |
 | --- | --- | --- | --- | --- |
-| Sonarr v3 | 52 | 10 | 172 | [parity/sonarr-api.md](parity/sonarr-api.md) |
-| Radarr v3 | 48 | 11 | 178 | [parity/radarr-api.md](parity/radarr-api.md) |
+| Sonarr v3 | 60 | 10 | 164 | [parity/sonarr-api.md](parity/sonarr-api.md) |
+| Radarr v3 | 56 | 11 | 170 | [parity/radarr-api.md](parity/radarr-api.md) |
 | Seerr v1 | 70 | 0 | 147 | [parity/seerr-api.md](parity/seerr-api.md) |
 
-"Stub" answers a fixed empty value so clients don't fail, but does nothing yet. To rerun:
+"Stub" answers a fixed empty value so clients don't fail, but does nothing yet. A PR that adds routes in a new file
+adds that file to `ROUTE_FILES` in the script. To rerun:
 
 ```sh
 # On any machine with git and Python 3.11+ (PyYAML), from the repository root:
@@ -51,7 +52,8 @@ otherwise. Track: *Arr*.
 | Movies (movies, collections, credits, alt titles) — Radarr | 🟨 | `movies.rs`, `radarr.rs` | Collections, credits, alternative titles, movie translations, `MovieService` edge cases |
 | MetadataSource (SkyHook / TMDB) | 🟨 | `tmdb.rs` (TMDB for both) | Sonarr reads SkyHook (TVDB); Marquee uses TMDB by [decision](DECISIONS.md). Port search/lookup ranking and refresh rules |
 | SeriesStats / MovieStats | 🟨 | computed in `sonarr.rs` / `radarr.rs` | Port the stats queries (episode file counts, size on disk, percent) exactly |
-| Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser` ported with its upstream test cases; `quality_tv.rs`, `quality_movie.rs`), `release.rs` | `Parser.cs`, `LanguageParser`, `ReleaseGroupParser`, `SceneChecker`, daily/anime formats |
+| Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser` and `LanguageParser` ported with their upstream test cases; `quality_tv.rs`, `quality_movie.rs`), `release.rs` | `Parser.cs`, `ReleaseGroupParser`, `SceneChecker`, daily/anime formats; wire `LanguageParser` into release parsing (two Radarr cases wait on `ParseMovieTitle`) |
+| Languages (language list, ISO codes) | ✅ | `parser/` (`Language`, `IsoLanguages`) | — |
 | DataAugmentation (scene mappings, XEM, daily series) — Sonarr | ⬜ | — | Scene mapping and XEM numbering, `DailySeries` |
 | Qualities (definitions, sizes) | ✅ | `quality.rs` | — |
 | Profiles (quality profiles, delay profiles, release profiles) | 🟨 | `quality.rs` | Delay profiles, release profiles (Sonarr), language in profiles |
@@ -64,6 +66,7 @@ otherwise. Track: *Arr*.
 | MediaFiles (import, rename, delete, recycle bin, disk scan) | 🟨 | `import.rs` | Disk scan, manual import, rename preview and execute, `MediaInfo` (ffprobe), file deletion rules, recycle bin cleanup |
 | Organizer (naming tokens) | 🟨 | `import.rs` naming | Port `FileNameBuilder` tokens and naming config endpoints in full |
 | Extras (subtitles, metadata files, other files) | ⬜ | — | Import and rename extra files, metadata consumers (Kodi, Plex, Roksbox, WDTV) |
+| Calendar feed (iCal, `CalendarFeedController`) | ✅ | `calendar_feed.rs` | — |
 | History | ⬜ | `/history` is a stub | History table and events (grabbed, imported, failed, deleted, renamed) |
 | Blocklisting | 🟨 | releases turned down are remembered | Blocklist table, API and UI as upstream |
 | RootFolders | ✅ | `library.rs` | Unmapped folders |
@@ -91,17 +94,17 @@ Track: *Seerr*.
 
 | Module | Status | Marquee today | What is left |
 | --- | --- | --- | --- |
-| Requests (`routes/request.ts`, `entity/MediaRequest`) | 🟨 | `requests/seerr.rs`, `requests/mod.rs` (ported from `routes/request.ts`, `MediaRequest.request`, `User.getQuota`) | Override rules, blocklisted-media check (with Blocklist), upstream `canRemove` (with `DELETE /media/{id}/file`) |
+| Requests (`routes/request.ts`, `entity/MediaRequest`) | 🟨 | `requests/seerr.rs`, `requests/mod.rs` (ported from `routes/request.ts`, `MediaRequest.request`, `User.getQuota`) | Override rules, upstream `canRemove` (with `DELETE /media/{id}/file`) |
 | Media (`routes/media.ts`, `entity/Media`) | 🟨 | `requests/seerr.rs` (ported from `routes/media.ts`) | Watch data (needs Tautulli; answers "not configured"), `DELETE /media/{id}/file` keeps files until the Arr port follows `deleteFiles`, per-season status body |
 | Discover (`routes/discover.ts`) | 🟨 | `requests/discover.rs`, `requests/sliders.rs` (discover rows from `settings/discover`) | Genres, keywords, studios, networks, languages, watchlist |
 | Movie, TV, person, collection details | 🟨 | movie and TV done | Person, collection, cast/crew pages, ratings from RT/IMDb as upstream |
 | Search (`routes/search.ts`) | 🟨 | `/search` | Keyword and company search |
-| Users, permissions, quotas (`routes/user`, `lib/permissions.ts`) | 🟨 | roles map to permission bits ([decision](DECISIONS.md)) | User create/import/bulk edit, per-user notification settings, linked accounts, watchlist |
+| Users, permissions, quotas (`routes/user`, `lib/permissions.ts`) | 🟨 | `requests/seerr.rs` (ported from `routes/user/index.ts`); roles map to permission bits ([decision](DECISIONS.md)) | `routes/user/usersettings.ts` (per-user settings, notification settings, linked accounts), watchlist |
 | Auth (`routes/auth.ts`: local, Plex, Jellyfin) | 🟨 | Marquee sign-in, Plex/Jellyfin sign-in in `media_servers/` | Answer Seerr's `/auth/*` paths for clients that sign in |
 | Settings (`routes/settings/*`) | ⬜ | Marquee's own settings | Seerr's settings endpoints (main, Plex, Jellyfin, Radarr/Sonarr = Marquee itself, notifications, jobs, cache, logs) |
 | Notifications (`lib/notifications/agents`) | 🟨 | Discord, ntfy | Email (have `mail.rs`), Gotify, Pushbullet, Pushover, Slack, Telegram, webhook, web push |
 | Issues (`routes/issue.ts`, `issueComment.ts`) | ⬜ | — | Issues and comments |
-| Blocklist (`routes/blocklist.ts`, `job/blocklistedTagsProcessor.ts`) | ⬜ | — | Blocklisted titles and tags |
+| Blocklist (`routes/blocklist.ts`, `job/blocklistedTagsProcessor.ts`) | 🟨 | `requests/blocklist.rs` (ported from `routes/blocklist.ts`) | Blocklisted tags (`blocklistedTagsProcessor.ts`) |
 | Watchlist sync (`lib/watchlistsync.ts`) | ⬜ | — | Plex watchlist auto-requests |
 | Availability sync, scanners (`lib/availabilitySync.ts`, `lib/scanners`) | 🟨 | `media_available` from Plex/Jellyfin | Sonarr/Radarr scanners are Marquee's own library (➖); port availability rules |
 | Download tracker (`lib/downloadtracker.ts`) | 🟨 | downloads are Marquee's own | Show progress on requests as upstream |
@@ -118,6 +121,9 @@ The forked upstream frontends are served by Marquee with the Encore look (track 
 stay for what upstream doesn't have (setup, TRaSH, accounts and invites, moving in, Anime). A page is ✅ when the
 forked page is served, styled and working against Marquee's API.
 
+**Forked apps served and styled (#26); pages turn ✅ as their API lands.** Sonarr's and Radarr's library index and
+Seerr's home and discover already load against Marquee.
+
 ### Sonarr (served at `/sonarr/`) and Radarr (served at `/radarr/`)
 
 | Page | Sonarr | Radarr | Note |
@@ -125,7 +131,7 @@ forked page is served, styled and working against Marquee's API.
 | Library index (posters, overview, table) | ⬜ | ⬜ | Leptos `web/src/tv.rs` / `movies.rs` stand in today |
 | Add new / import existing / discover | ⬜ | ⬜ | Radarr adds Discover and Collections |
 | Series or movie details, season and episode details | ⬜ | ⬜ | |
-| Calendar (and iCal feed) | ⬜ | ⬜ | `/feed/v3/calendar/*.ics` needed |
+| Calendar (and iCal feed) | ⬜ | ⬜ | iCal feed done (`calendar_feed.rs`) |
 | Activity: queue, history, blocklist | ⬜ | ⬜ | Leptos `web/src/activity.rs` stands in |
 | Wanted: missing, cutoff unmet | ⬜ | ⬜ | |
 | Interactive search, interactive import, organize (rename) | ⬜ | ⬜ | |

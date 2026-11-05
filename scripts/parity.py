@@ -30,8 +30,20 @@ METHODS = ("get", "post", "put", "delete", "patch")
 
 # Where each Marquee file's routes are served, per upstream app. arr_common.rs serves both arr apps.
 ROUTE_FILES = {
-    "sonarr": [("server/src/sonarr.rs", "/sonarr/api/v3"), ("server/src/arr_common.rs", "/sonarr/api/v3")],
-    "radarr": [("server/src/radarr.rs", "/radarr/api/v3"), ("server/src/arr_common.rs", "/radarr/api/v3")],
+    "sonarr": [
+        ("server/src/sonarr.rs", "/sonarr/api/v3"),
+        ("server/src/arr_common.rs", "/sonarr/api/v3"),
+        ("server/src/localization.rs", "/sonarr/api/v3"),
+        ("server/src/custom_filters.rs", "/sonarr/api/v3"),
+        ("server/src/calendar_feed.rs", ""),
+    ],
+    "radarr": [
+        ("server/src/radarr.rs", "/radarr/api/v3"),
+        ("server/src/arr_common.rs", "/radarr/api/v3"),
+        ("server/src/localization.rs", "/radarr/api/v3"),
+        ("server/src/custom_filters.rs", "/radarr/api/v3"),
+        ("server/src/calendar_feed.rs", ""),
+    ],
     "seerr": [
         ("server/src/requests/seerr.rs", "/api/v1"),
         ("server/src/requests/discover.rs", "/api/v1"),
@@ -153,10 +165,8 @@ def table(app, lock, folder):
             status = "Done"
         elif app == "seerr":
             status = lookup(routes, prefix + path, method)
-        elif path.startswith("/api/v3"):
-            status = lookup(routes, prefix + path, method)
         else:
-            status = "Missing"
+            status = lookup(routes, prefix + path, method)
         counts[status] += 1
         mark = {"Done": "✅ Done", "Stub": "🟡 Stub", "Missing": "⬜ Missing"}[status]
         rows.append(f"| `{method.upper()}` | `{path}` | {mark} |" + (f" {summary.replace('|', '/')} |" if app == "seerr" else ""))
