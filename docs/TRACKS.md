@@ -55,3 +55,18 @@ The shared files already call each track's module, so a track adds code only in 
 
 Every PR rebases on the newest main before it merges and must be green. Core merges with squash and deletes the
 branch. While `docs/RELEASE_HOLD` exists, merges are not released.
+
+## Port tracks ("port, don't reimagine")
+
+From 2026-11-05 the work ports Sonarr, Radarr and Seerr at the commits in `UPSTREAM.lock`; `docs/PARITY.md` is the
+checklist. These tracks run in parallel with the same rules as above.
+
+| Track | Owns |
+| --- | --- |
+| **Lead** (forks, pins, checklist, merge order) | `UPSTREAM.lock`, `docs/PARITY.md`, `docs/parity/**`, `scripts/parity.py`, `scripts/parity-fetch.sh` |
+| **UI** (forked Sonarr, Radarr and Seerr web UIs with the Encore look) | `ui/**` and the server module that serves the built UIs; its Dockerfile stage goes through core |
+| **Arr backend** (Sonarr and Radarr port) | the core files it ports into, by agreement with core |
+| **Seerr backend** | `server/src/requests/**` and the Seerr tests, as the requests track |
+
+Port PRs regenerate `docs/parity/*-api.md` with `scripts/parity.py` and send their module and UI ticks to the lead,
+who folds them into `docs/PARITY.md`. The lead's first PR (pins and checklist) merges first; the others rebase on it.

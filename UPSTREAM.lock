@@ -1,0 +1,36 @@
+# The upstream projects Marquee ports, each pinned to one exact commit.
+#
+# Marquee ports these apps' behaviour, API and web UI (see docs/PARITY.md). Every port, contract recording and
+# UI build uses exactly the commit below, never a branch. To move to a newer upstream release, change `tag` and
+# `commit` together in one PR, rerun `scripts/parity.py`, and note what changed in docs/DECISIONS.md.
+#
+# Fields:
+#   upstream  the original project
+#   fork      the Krifmaz fork, where Marquee's own patches to the upstream code live (branch `marquee`)
+#   tag       the upstream release the commit is
+#   commit    the full commit id; fetch this, never the tag or a branch
+#   license   the upstream license; Marquee is GPL-3.0-only to stay compatible
+#
+# Fetch a pinned tree (use the fork once it exists; it holds the same commit):
+#   git init src && git -C src fetch --depth 1 <fork or upstream> <commit> && git -C src checkout FETCH_HEAD
+
+[sonarr]
+upstream = "https://github.com/Sonarr/Sonarr"
+fork = "https://github.com/Krifmaz/Sonarr"
+tag = "v4.0.20.3014"
+commit = "cab419ade8ac7fcab5bf80394ee492abd35d5f5a"
+license = "GPL-3.0"
+
+[radarr]
+upstream = "https://github.com/Radarr/Radarr"
+fork = "https://github.com/Krifmaz/Radarr"
+tag = "v6.4.4.10685"
+commit = "a96bf7c3ecb23cb76993770727285dc17a613fbc"
+license = "GPL-3.0"
+
+[seerr]
+upstream = "https://github.com/seerr-team/seerr"
+fork = "https://github.com/Krifmaz/seerr"
+tag = "v3.5.1"
+commit = "564bfb08b54caa374bddaf820abfd226e5e69151"
+license = "MIT"
