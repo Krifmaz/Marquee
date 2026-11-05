@@ -6,6 +6,7 @@
 //! | after signing in | the What's new popup, once per release |
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
 //! | `#/movies` | every movie as a poster, TMDB search and Add (admins) |
+//! | `#/activity` | every download through Lantern, how far along, why one is stuck; Stop (admins) |
 //! | `#/tv` | every series as a poster with its missing episodes, TMDB search and Add (admins) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
@@ -13,8 +14,12 @@
 //! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`].
 
 mod accounts;
+mod activity;
+mod media;
 mod movies;
 mod pages;
+mod requests;
+mod trash;
 mod tv;
 
 use kit_leptos::api::{self, HttpBackend};
@@ -127,7 +132,13 @@ fn main() {
                 notice::mount();
                 whats_new::start(Rc::new(navigate));
             }
-            None => leptos::mount::mount_to(root, pages::SignIn).forget(),
+            None => {
+                let hash = rt::window().and_then(|w| w.location().hash().ok()).unwrap_or_default();
+                match media::public_page(&hash) {
+                    Some(_) => leptos::mount::mount_to(root, move || media::public_page(&hash)).forget(),
+                    None => leptos::mount::mount_to(root, pages::SignIn).forget(),
+                }
+            }
         }
     });
 }
@@ -180,10 +191,16 @@ fn Shell(me: Value) -> impl IntoView {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
             "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
             "/tv" => view! { <tv::Tv admin=admin/> }.into_any(),
+            "/activity" => view! { <activity::Activity admin=admin/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
-            _ => view! { <pages::Home/> }.into_any(),
+            // the tracks' own pages (docs/TRACKS.md), then Home
+            p => trash::page(p, &r.query, admin)
+                .or_else(|| requests::page(p, &r.query, admin))
+                .or_else(|| media::page(p, &r.query, admin))
+                .unwrap_or_else(|| view! { <pages::Home/> }.into_any()),
         }
     };
+    let track_links = [trash::nav(admin), requests::nav(admin), media::nav(admin)].concat();
     view! {
         <div class="shell">
             <aside class="sidebar" id="sidebar">
@@ -192,6 +209,8 @@ fn Shell(me: Value) -> impl IntoView {
                     <NavLink href="/" label="Home" route=route/>
                     <NavLink href="/movies" label="Movies" route=route/>
                     <NavLink href="/tv" label="TV" route=route/>
+                    <NavLink href="/activity" label="Activity" route=route/>
+                    {track_links.into_iter().map(|(href, label)| view! { <NavLink href=href label=label route=route/> }).collect_view()}
                 </nav>
                 <nav class="nav nav-under">
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>

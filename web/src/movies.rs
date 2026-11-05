@@ -123,8 +123,16 @@ pub fn Movies(admin: bool) -> impl IntoView {
             if movies.is_empty() {
                 view! { <div class="empty"><p class="muted">"No movies yet. Search above to add the first one."</p></div> }.into_any()
             } else {
-                view! { <div class="posters" id="movies">{movies.iter().map(|m| poster(m, standing(m), None)).collect_view()}</div> }
-                    .into_any()
+                view! {
+                    <div class="posters" id="movies">
+                        {movies.iter().map(|m| {
+                            let id = m.get("id").and_then(Value::as_i64).unwrap_or(0);
+                            let action = (admin && standing(m).0 == "Missing").then(|| search_button(format!("/movies/{id}/search"), s(m, "title")));
+                            poster(m, standing(m), action)
+                        }).collect_view()}
+                    </div>
+                }
+                .into_any()
             }
         }
     };
@@ -139,6 +147,26 @@ pub fn Movies(admin: bool) -> impl IntoView {
         {found}
         <div class="mt">{grid}</div>
     }
+}
+
+/// A Search button: asks the server to search Lantern (`path`) and says what happened.
+pub fn search_button(path: String, title: String) -> AnyView {
+    let (busy, set_busy) = signal(false);
+    let go = move |_| {
+        let (path, title) = (path.clone(), title.clone());
+        set_busy.set(true);
+        leptos::task::spawn_local(async move {
+            match api::post_empty(&path).await {
+                Ok(v) => match v.get("reason").and_then(Value::as_str) {
+                    Some(why) if v["grabbed"].as_array().is_none_or(Vec::is_empty) => toast(why, "warn"),
+                    _ => toast(&format!("Found {title}: it's downloading (see Activity)"), "ok"),
+                },
+                Err(e) => toast(&e.message, "err"),
+            }
+            set_busy.set(false);
+        });
+    };
+    view! { <button class="btn" disabled=move || busy.get() on:click=go>{move || if busy.get() { "Searching…" } else { "Search" }}</button> }.into_any()
 }
 
 /// `t` made safe for a URL's query (letters, digits and `-_.~` stay, the rest is %-encoded).

@@ -40,6 +40,7 @@ pub static APP_INFO: App = App {
     root_kinds: &["tv", "anime"],
     languages: include_str!("../data/sonarr/language.json"),
     indexer_schema: include_str!("../data/sonarr/indexer_schema.json"),
+    queue: crate::downloads::sonarr_queue,
 };
 
 /// The routes, nested under `/sonarr`.
@@ -450,6 +451,9 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
     match series::add(&st.db, &info, eps, &o) {
         Ok(s) => {
             tracing::info!("Added the series {} through the Sonarr API", s.info.title);
+            if b["addOptions"]["searchForMissingEpisodes"].as_bool() == Some(true) {
+                crate::downloads::spawn_search(&st, crate::downloads::Search::Series(s.id, None));
+            }
             match series::episodes(&st.db, s.id) {
                 Ok(eps) => with_status(201, resource(&s, &eps, Utc::now())),
                 Err(e) => fail(e),
@@ -746,6 +750,22 @@ async fn command_add(State(st): State<AppState>, Json(mut b): Json<Value>) -> Re
             }
         });
     }
+    use crate::downloads::{spawn_search, Search};
+    match name.as_str() {
+        "EpisodeSearch" => spawn_search(&st, Search::Episodes(ids(&b["episodeIds"]))),
+        "SeasonSearch" => {
+            if let Some(id) = b["seriesId"].as_i64() {
+                spawn_search(&st, Search::Series(id, b["seasonNumber"].as_i64()))
+            }
+        }
+        "SeriesSearch" => {
+            if let Some(id) = b["seriesId"].as_i64() {
+                spawn_search(&st, Search::Series(id, None))
+            }
+        }
+        "MissingEpisodeSearch" | "CutoffUnmetEpisodeSearch" => spawn_search(&st, Search::Missing { movies: false, tv: true }),
+        _ => {}
+    }
     match arr::record_command(&st.db, APP, &name, &b) {
         Ok(v) => with_status(201, v),
         Err(e) => fail(e),
@@ -753,7 +773,10 @@ async fn command_add(State(st): State<AppState>, Json(mut b): Json<Value>) -> Re
 }
 
 /// `GET config/naming`: how series folders and episode files are named.
-async fn naming() -> Json<Value> {
+async fn naming(State(st): State<AppState>) -> Json<Value> {
+    if let Some(v) = crate::trash::naming(&st, "tv") {
+        return Json(v);
+    }
     Json(json!({
         "renameEpisodes": false,
         "replaceIllegalCharacters": true,

@@ -55,7 +55,7 @@ env = "MARQUEE_LANTERN_URL"
 default = ""
 group = "lantern"
 label = "Lantern address"
-help = "Lantern's web address as this server reaches it, for example http://lantern:8080."
+help = "Lantern's web address as this server reaches it, for example http://lantern:9696."
 type = "text"
 
 [keys.lantern_api_key]
@@ -66,6 +66,14 @@ group = "lantern"
 label = "Lantern API key"
 help = "Lantern → Settings → API key."
 type = "password"
+
+[keys.marquee_url]
+env = "MARQUEE_URL"
+default = ""
+group = "lantern"
+label = "This server's address for Lantern"
+help = "How Lantern reaches Marquee, for example http://marquee:8080. With it, Lantern says at once when a download is done; without it, Marquee asks every minute."
+type = "text"
 
 [groups.metadata]
 section = "connections"
@@ -114,3 +122,18 @@ min = 0
 env = "MARQUEE_TMDB_URL"
 default = ""
 help = "Where TMDB's API is; empty means TMDB itself. For tests and mirrors."
+
+# ---- Track blocks (docs/TRACKS.md). Each track adds its own sections, groups and keys only inside its own block,
+# ---- so two tracks never change the same lines. Core keeps everything above.
+
+# ---- TRaSH track: keys start with trash_ ----
+
+# ---- end of the TRaSH track ----
+
+# ---- Requests track: keys start with request_ or seerr_ ----
+
+# ---- end of the requests track ----
+
+# ---- Media servers track: keys start with jellyfin_, plex_, smtp_, signup_ or invite_ ----
+
+# ---- end of the media servers track ----

@@ -19,7 +19,13 @@ async fn server(name: &str) -> (Router, server::AppState, PathBuf) {
     std::fs::create_dir_all(&web).unwrap();
     std::fs::write(web.join("index.html"), "<!doctype html><title>app</title>").unwrap();
     std::fs::write(web.join(format!("{}-web-0123456789abcdef.js", server::NAME)), "").unwrap();
-    let st = server::AppState::open(&dir.join("data"), web, |name| (name == "APP_API_KEY").then(|| "test-key".to_string())).await.unwrap();
+    let st = server::AppState::open(&dir.join("data"), web, |name| match name {
+        "APP_API_KEY" => Some("test-key".to_string()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        _ => None,
+    })
+    .await
+    .unwrap();
     server::auth::ensure_owner(&st, None, Some(PASSWORD.into())).unwrap();
     (server::app(st.clone()), st, dir)
 }

@@ -14,7 +14,13 @@ async fn server(name: &str) -> (Router, std::path::PathBuf) {
     let web = dir.join("static");
     std::fs::create_dir_all(&web).unwrap();
     std::fs::write(web.join("index.html"), "<!doctype html>").unwrap();
-    let st = server::AppState::open(&dir.join("data"), web, |n| (n == "APP_API_KEY").then(|| "test-key".to_string())).await.unwrap();
+    let st = server::AppState::open(&dir.join("data"), web, |n| match n {
+        "APP_API_KEY" => Some("test-key".to_string()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        _ => None,
+    })
+    .await
+    .unwrap();
     server::auth::ensure_owner(&st, None, Some("correct horse battery".into())).unwrap();
     (server::app(st), dir)
 }

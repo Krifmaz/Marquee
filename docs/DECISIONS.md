@@ -27,3 +27,9 @@ One line per call that was not obvious.
 - 2026-11-05 · Movies and TV share one quality table and one profile table, so the ids Marquee's Sonarr API gives are its own (Sonarr numbers from 1); clients read the ids from the lists and don't depend on the numbers.
 - 2026-11-05 · The Radarr and Sonarr APIs share one piece of code for the parts that are the same in both (queue, history, profiles, root folders, tags, indexers, commands); only movie and series parts differ.
 - 2026-11-05 · Specials (season 0) are never monitored by themselves, like Sonarr.
+- 2026-11-05 · Lantern's download hub isn't built yet, so Marquee writes the hub contract (docs/LANTERN_HUB.md) and is tested against a stand-in; searching already uses Lantern's real Prowlarr API (`/api/v1/search`).
+- 2026-11-05 · Marquee asks Lantern about downloads every minute and also takes Lantern's callbacks, so downloads finish even when Lantern can't reach Marquee (no address set, or another network).
+- 2026-11-05 · Release names are read by Marquee's own parser (quality, season and episodes, absolute numbers, group, proper/repack), with Sonarr's quality names; movies use Radarr's spelling of the two remux qualities.
+- 2026-11-05 · A release must match the title (articles and marks ignored) and the year within one; a season pack is taken only when every aired episode of the season is wanted.
+- 2026-11-05 · A file that is replaced by a better one is moved to `<root folder>/.marquee-recycle/`, never deleted; emptying it stays the owner's choice.
+- 2026-11-05 · Adding a movie or series through the Radarr or Sonarr API searches at once only when the caller asks (`searchForMovie`, `searchForMissingEpisodes`), like Radarr and Sonarr.
