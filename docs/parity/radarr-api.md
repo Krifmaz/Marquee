@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.10685 ([`a96bf7c3ec`](https://github.com/Radarr/Radarr/tree/a96bf7c3ecb23cb76993770727285dc17a613fbc)). Marquee serves it under `/radarr`.
 
-**47 done, 10 stub, 180 missing of 237.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**48 done, 11 stub, 178 missing of 237.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.1068
 | `GET` | `/api/v3/blocklist/movie` | ⬜ Missing |
 | `DELETE` | `/api/v3/blocklist/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/calendar` | ✅ Done |
-| `GET` | `/api/v3/collection` | ⬜ Missing |
+| `GET` | `/api/v3/collection` | 🟡 Stub |
 | `PUT` | `/api/v3/collection` | ⬜ Missing |
 | `GET` | `/api/v3/collection/{id}` | ⬜ Missing |
 | `PUT` | `/api/v3/collection/{id}` | ⬜ Missing |
@@ -128,7 +128,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.1068
 | `DELETE` | `/api/v3/indexer/{id}` | ✅ Done |
 | `GET` | `/api/v3/indexer/{id}` | ✅ Done |
 | `PUT` | `/api/v3/indexer/{id}` | ✅ Done |
-| `GET` | `/api/v3/indexerflag` | ⬜ Missing |
+| `GET` | `/api/v3/indexerflag` | ✅ Done |
 | `GET` | `/api/v3/language` | ✅ Done |
 | `GET` | `/api/v3/language/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/localization` | ⬜ Missing |
