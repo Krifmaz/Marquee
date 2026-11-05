@@ -226,4 +226,171 @@ help = "Where AniList's API is; empty means AniList itself. For tests and mirror
 
 # ---- Media servers track: keys start with jellyfin_, plex_, smtp_, signup_ or invite_ ----
 
+# ── Media servers, sign-up and mail (media_servers.rs, account_sync.rs, invites.rs, recovery.rs, expiry.rs, mail.rs)
+
+[sections.media]
+title = "Media servers"
+
+[groups.jellyfin]
+section = "media"
+title = "Jellyfin"
+desc = "Marquee makes and updates each person's Jellyfin account, scans the library after an import and shows what Jellyfin already has."
+
+[keys.jellyfin_url]
+env = "MARQUEE_JELLYFIN_URL"
+default = ""
+group = "jellyfin"
+label = "Jellyfin address"
+help = "Jellyfin's web address as this server reaches it, for example http://jellyfin:8096."
+type = "text"
+
+[keys.jellyfin_api_key]
+env = "MARQUEE_JELLYFIN_API_KEY"
+default = ""
+secret = true
+group = "jellyfin"
+label = "Jellyfin API key"
+help = "Jellyfin → Dashboard → API Keys → +."
+type = "password"
+
+[keys.jellyfin_public_url]
+env = "MARQUEE_JELLYFIN_PUBLIC_URL"
+default = ""
+group = "jellyfin"
+label = "Jellyfin address for people"
+help = "The address people open Jellyfin at, shown after they sign up. Empty: the address above."
+type = "text"
+
+[keys.jellyfin_sign_in]
+env = "MARQUEE_JELLYFIN_SIGN_IN"
+default = true
+group = "jellyfin"
+label = "Sign in with a Jellyfin account"
+type = "bool"
+
+[groups.plex]
+section = "media"
+title = "Plex"
+desc = "Marquee shares your Plex libraries with each person who should have them, scans after an import and shows what Plex already has."
+
+[keys.plex_url]
+env = "MARQUEE_PLEX_URL"
+default = ""
+group = "plex"
+label = "Plex address"
+help = "Plex's web address as this server reaches it, for example http://plex:32400."
+type = "text"
+
+[keys.plex_token]
+env = "MARQUEE_PLEX_TOKEN"
+default = ""
+secret = true
+group = "plex"
+label = "Plex token"
+help = "The server owner's Plex token (support.plex.tv: Finding an authentication token)."
+type = "password"
+
+[keys.plex_sign_in]
+env = "MARQUEE_PLEX_SIGN_IN"
+default = true
+group = "plex"
+label = "Sign in with a Plex account"
+type = "bool"
+
+[keys.plex_tv_url]
+env = "MARQUEE_PLEX_TV_URL"
+default = ""
+help = "Where plex.tv's API is; empty means plex.tv itself. For tests."
+
+[groups.signup]
+section = "media"
+title = "Sign-up and accounts"
+desc = "Invite links, the sign-up page, password reset mails and account expiry."
+
+[keys.signup_public_url]
+env = "MARQUEE_SIGNUP_PUBLIC_URL"
+default = ""
+group = "signup"
+label = "Marquee's address for people"
+help = "The address people open Marquee at, for example https://marquee.example.com. Invite and password reset links use it."
+type = "text"
+
+[keys.signup_media_creates]
+env = "MARQUEE_SIGNUP_MEDIA_CREATES"
+default = false
+group = "signup"
+label = "Plex or Jellyfin sign-in makes an account"
+help = "On: anyone with access to your Plex or Jellyfin server can sign in and gets an account with the default role. Off: only people already linked to an account."
+type = "bool"
+
+[keys.signup_expiry_reminder_days]
+env = "MARQUEE_SIGNUP_EXPIRY_REMINDER_DAYS"
+default = 3
+group = "signup"
+label = "Remind people before their account ends (days)"
+type = "number"
+unit = "days"
+min = 0
+
+[keys.signup_expiry_action]
+env = "MARQUEE_SIGNUP_EXPIRY_ACTION"
+default = "disable"
+group = "signup"
+label = "When an account ends"
+type = "select"
+options = [["disable", "Turn it off everywhere"], ["delete", "Remove it everywhere"]]
+
+[groups.mail]
+section = "media"
+title = "Mail"
+desc = "For invites, password reset and expiry reminders. Without it, people can't reset their own password."
+
+[keys.smtp_host]
+env = "MARQUEE_SMTP_HOST"
+default = ""
+group = "mail"
+label = "Mail server"
+help = "For example smtp.fastmail.com."
+type = "text"
+
+[keys.smtp_port]
+env = "MARQUEE_SMTP_PORT"
+default = 587
+group = "mail"
+label = "Port"
+type = "number"
+min = 1
+max = 65535
+
+[keys.smtp_security]
+env = "MARQUEE_SMTP_SECURITY"
+default = "starttls"
+group = "mail"
+label = "Encryption"
+type = "select"
+options = [["starttls", "STARTTLS (port 587)"], ["tls", "TLS (port 465)"], ["none", "None"]]
+
+[keys.smtp_user]
+env = "MARQUEE_SMTP_USER"
+default = ""
+group = "mail"
+label = "User name"
+type = "text"
+
+[keys.smtp_password]
+env = "MARQUEE_SMTP_PASSWORD"
+default = ""
+secret = true
+group = "mail"
+label = "Password"
+type = "password"
+
+[keys.smtp_from]
+env = "MARQUEE_SMTP_FROM"
+default = ""
+group = "mail"
+label = "From address"
+help = "For example Marquee <marquee@example.com>."
+type = "text"
+
 # ---- end of the media servers track ----
