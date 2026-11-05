@@ -38,20 +38,20 @@ import java.time.LocalDate
 /**
  * The calendar: a week of movies coming out and episodes airing, by day, from `GET /api/calendar`; Earlier and
  * Later go a week back or on. The list's resource id ("home-list") is what the benchmarks scroll: this is the
- * first page.
+ * first page. The Anime tab shows the same page on `GET /api/anime/calendar` ([path]) under its own [title].
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun CalendarPage(app: App) {
+fun CalendarPage(app: App, path: String = "/api/calendar", title: String = "Calendar") {
     val today = remember { LocalDate.now() }
     var week by rememberSaveable { mutableIntStateOf(0) }
     var round by remember { mutableIntStateOf(0) }
     val start = CalendarRules.pageStart(today, week)
-    val state = rememberLoaded(app, "/api/calendar" + CalendarRules.query(start), round) { CalendarRules.byDay(CalendarRules.parse(it)) }
+    val state = rememberLoaded(app, path + CalendarRules.query(start), round) { CalendarRules.byDay(CalendarRules.parse(it)) }
     val p = MaterialTheme.palette
 
     Column(Modifier.fillMaxSize()) {
-        SectionHead("Calendar", subtitle = CalendarRules.rangeLabel(start, today))
+        SectionHead(title, subtitle = CalendarRules.rangeLabel(start, today))
         Row(Modifier.fillMaxWidth().padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             SmallButton("Earlier") { week -= 1 }
             if (week != 0) SmallButton("This week") { week = 0 }

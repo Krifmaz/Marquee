@@ -51,11 +51,12 @@ private const val QUEUE_REFRESH_SECONDS = 5L
  * seconds while the page shows. Admins can stop a download (`DELETE /api/downloads/{id}`), after a confirm.
  *
  * @param admin whether the signed-in account may stop downloads (null while unknown: the server decides).
+ * @param path the list to show (the Anime tab's queue is `GET /api/anime/activity`).
  */
 @Composable
-fun QueuePage(app: App, admin: Boolean?) {
+fun QueuePage(app: App, admin: Boolean?, path: String = "/api/downloads") {
     var round by remember { mutableIntStateOf(0) }
-    val state = rememberLoaded(app, "/api/downloads", round, everySeconds = QUEUE_REFRESH_SECONDS, parse = QueueRules::parse)
+    val state = rememberLoaded(app, path, round, everySeconds = QUEUE_REFRESH_SECONDS, parse = QueueRules::parse)
     var stopping by remember { mutableStateOf<QueueItem?>(null) }
     val scope = rememberCoroutineScope()
 

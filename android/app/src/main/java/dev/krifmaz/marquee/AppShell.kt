@@ -21,7 +21,7 @@ import dev.krifmaz.kit.compose.widgets.BackBar
 
 /** The app's pages; [AppShell] keeps them as a stack, and Back goes to the one below. */
 sealed interface Page {
-    /** The first page: the tabs (calendar, queue, library, more). */
+    /** The first page: the tabs (calendar, requests, queue, library, anime, more). */
     data object Home : Page
 
     /** What's new: every release's notes ([ChangelogScreen]). */
