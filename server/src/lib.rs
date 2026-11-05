@@ -11,13 +11,22 @@
 //! | `/api/auth/login`, `/api/auth/logout`, `/api/auth/me` | [`auth`] |
 //! | `/api/roles`, `/api/users`, `/api/users/{id}` | [`users`] (roles in [`roles`]) |
 //! | `/api/root-folders`, `/api/root-folders/{id}` | [`library`] |
+//! | `/api/movies`, `/api/movies/lookup`, `/api/movies/{id}` | [`movies`] (details from [`tmdb`]) |
+//! | `/api/quality-profiles` | [`quality`] |
+//! | `/radarr/api/v3/*` (the Radarr v3 API, Marquee's API key) | [`radarr`] (shared parts in [`arr`]) |
 //!
 //! Everything the app adds of its own goes into [`app`] next to them.
 
+pub mod arr;
 pub mod auth;
 pub mod checks;
 pub mod library;
+pub mod movies;
+pub mod quality;
+pub mod radarr;
 pub mod roles;
+pub mod tags;
+pub mod tmdb;
 pub mod users;
 
 use axum::http::{header, HeaderValue};
@@ -82,6 +91,10 @@ pub struct AppState {
     pub notices: kit_server_notices::Notices<AppState>,
     /// Sign-in and bug report limits per address or account.
     pub limits: Arc<auth::Limits>,
+    /// The HTTP client for TMDB and the other services (one connection pool).
+    pub http: reqwest::Client,
+    /// When the server started, RFC 3339.
+    pub started: String,
 }
 
 impl AppState {
@@ -92,6 +105,7 @@ impl AppState {
         let static_dir = PathBuf::from(std::env::var("APP_STATIC_DIR").unwrap_or_else(|_| "/app/static".into()));
         let st = AppState::open(&data, static_dir, |name| std::env::var(name).ok()).await?;
         auth::ensure_owner(&st, std::env::var("APP_ADMIN_USER").ok(), std::env::var("APP_ADMIN_PASSWORD").ok())?;
+        st.ensure_api_key().await?;
         Ok(st)
     }
 
@@ -106,6 +120,10 @@ impl AppState {
         let db = SqliteDb::open(&data.join("app.db")).map_err(|e| anyhow::anyhow!("The database can't be opened: {}", e.detail))?;
         auth::migrate(&db)?;
         library::migrate(&db)?;
+        tags::migrate(&db)?;
+        quality::migrate(&db)?;
+        movies::migrate(&db)?;
+        arr::migrate(&db)?;
         let kit = |e: kit_server_core::Error| anyhow::anyhow!("The kit's tables can't be made: {}", e.detail);
         let prefs = SqlitePrefs::new(db.clone()).map_err(kit)?;
         let reports = kit_server_bugreports::SqliteReports::new(db.clone()).map_err(kit)?;
@@ -125,7 +143,28 @@ impl AppState {
             changelog,
             notices,
             limits: Arc::new(auth::Limits::default()),
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .user_agent(concat!("Marquee/", env!("CARGO_PKG_VERSION")))
+                .build()
+                .map_err(|e| anyhow::anyhow!("The HTTP client can't be made: {e}"))?,
+            started: movies::now_iso(),
         })
+    }
+
+    /// Makes the server's API key on the first start when none is set: Prowlarr, Seerr and the other tools
+    /// that speak the Radarr and Sonarr APIs need one. Settings → General shows it to the owner.
+    pub async fn ensure_api_key(&self) -> anyhow::Result<()> {
+        if !self.settings.str("api_key").is_empty() || self.settings.env_locked("api_key") {
+            return Ok(());
+        }
+        let key = hex::encode(auth::random_token(16).as_bytes()).chars().take(32).collect::<String>();
+        self.settings
+            .set_many(&serde_json::json!({ "api_key": key }))
+            .await
+            .map_err(|e| anyhow::anyhow!("The API key can't be saved: {}", e.detail))?;
+        tracing::info!("Made the server's API key (Settings → General)");
+        Ok(())
     }
 
     /// The app's name as people see it (the `app_name` setting).
@@ -222,6 +261,9 @@ pub fn app(st: AppState) -> Router {
         .merge(auth::router())
         .merge(users::router())
         .merge(library::router())
+        .merge(movies::router())
+        .merge(quality::router())
+        .merge(radarr::router(st.clone()))
         .with_state(st)
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(security_headers))

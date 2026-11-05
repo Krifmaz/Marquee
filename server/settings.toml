@@ -37,7 +37,10 @@ min = 1
 env = "APP_API_KEY"
 default = ""
 secret = true
-help = "The server's API key (`x-api-key`): signs in as the owner. Empty: no API key."
+group = "general"
+label = "API key"
+type = "password"
+help = "Prowlarr, Seerr, Homepage, nzb360 and LunaSea connect with this key. Use http://<this server>/radarr as Radarr's address and /sonarr as Sonarr's."
 
 [sections.connections]
 title = "Connections"
@@ -106,3 +109,8 @@ group = "requests"
 label = "TV seasons a week (0: no limit)"
 type = "number"
 min = 0
+
+[keys.tmdb_url]
+env = "MARQUEE_TMDB_URL"
+default = ""
+help = "Where TMDB's API is; empty means TMDB itself. For tests and mirrors."
