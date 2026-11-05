@@ -19,7 +19,6 @@ use leptos::prelude::*;
 use serde_json::Value;
 
 /// Under the sign-in form (core's pages.rs draws it): Plex, Jellyfin and "Forgot your password?".
-#[allow(unused_imports)]
 pub use signup::SignInOptions;
 
 /// This track's page for `path` (`#/<path>?<query>`), `None` when the path isn't one of its own.
