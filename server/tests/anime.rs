@@ -25,6 +25,21 @@ async fn fakes() -> (String, String) {
             "/graphql",
             post(|Json(b): Json<Value>| async move {
                 let q = b["query"].as_str().unwrap_or("");
+                if q.contains("GenreCollection") {
+                    return Json(json!({ "data": { "GenreCollection": ["Action", "Fantasy", "Hentai"] } }));
+                }
+                if q.contains("id_in") {
+                    let mut s2 = frieren(182255, "Frieren Season 2", 2026, "RELEASING");
+                    s2["nextAiringEpisode"] = json!({ "episode": 5, "airingAt": 4_000_000_000i64 });
+                    return Json(json!({ "data": { "Page": { "media": [frieren(154587, "Frieren: Beyond Journey's End", 2023, "FINISHED"), s2] } } }));
+                }
+                if q.contains("Studio(") {
+                    let mut a = frieren(154587, "Frieren: Beyond Journey's End", 2023, "FINISHED");
+                    a["genres"] = json!(["Fantasy"]);
+                    let mut b = frieren(1, "Other", 2020, "FINISHED");
+                    b["genres"] = json!(["Action"]);
+                    return Json(json!({ "data": { "Studio": { "name": "Madhouse", "media": { "nodes": [a, b] } } } }));
+                }
                 if q.contains("Page") {
                     Json(json!({ "data": { "Page": { "media": [frieren(154587, "Frieren: Beyond Journey's End", 2023, "FINISHED")] } } }))
                 } else {
@@ -137,4 +152,105 @@ async fn anime_choices_mapping_lookups_and_review() {
     assert_eq!(call(&app, "POST", &format!("/api/anime/review/{id}/keep"), None).await.0, StatusCode::OK);
     assert_eq!(call(&app, "GET", "/api/anime/review", None).await.1, json!([]));
     assert_eq!(call(&app, "POST", &format!("/api/anime/review/{id}/keep"), None).await.0, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_anime_tab_lists_seasons_discover_calendar_and_downloads() {
+    let dir = std::env::temp_dir().join(format!("marquee-anime-tab-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("static")).unwrap();
+    std::fs::create_dir_all(dir.join("media/anime")).unwrap();
+    std::fs::write(dir.join("static/index.html"), "<!doctype html>").unwrap();
+    let (anilist, list) = fakes().await;
+    let st = server::AppState::open(&dir.join("data"), dir.join("static"), move |n| match n {
+        "APP_API_KEY" => Some(KEY.to_string()),
+        "MARQUEE_REQUEST_ANILIST_URL" => Some(anilist.clone()),
+        "MARQUEE_ANIME_LIST_URL" => Some(list.clone()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        _ => None,
+    })
+    .await
+    .unwrap();
+    server::auth::ensure_owner(&st, None, Some("correct horse battery".into())).unwrap();
+    let app = server::app(st.clone());
+    assert_eq!(call(&app, "POST", "/api/anime/mapping/refresh", None).await.0, StatusCode::OK);
+    let root = dir.join("media/anime").to_string_lossy().to_string();
+    let (s, v) = call(&app, "POST", "/api/root-folders", Some(json!({ "kind": "anime", "path": root }))).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+
+    // an anime series with two seasons, the second still airing
+    let info = server::tmdb::SeriesInfo {
+        tmdb_id: 209867,
+        tvdb_id: 424536,
+        title: "Frieren".into(),
+        year: 2023,
+        tmdb_status: "Returning Series".into(),
+        genres: vec!["Animation".into()],
+        original_language: "ja".into(),
+        seasons: vec![1, 2],
+        ..Default::default()
+    };
+    let ep = |season: i64, episode: i64, date: &str| server::tmdb::EpisodeInfo {
+        tmdb_id: season * 100 + episode,
+        season,
+        episode,
+        title: format!("Episode {episode}"),
+        air_date: Some(date.into()),
+        ..Default::default()
+    };
+    let soon = (chrono::Utc::now() + chrono::Duration::days(2)).format("%Y-%m-%d").to_string();
+    let eps = vec![ep(1, 1, "2023-09-29"), ep(1, 2, "2023-10-06"), ep(2, 1, "2026-01-10"), ep(2, 2, &soon)];
+    let profile = server::quality::default_profile(&st.db, "tv").unwrap();
+    let o = server::series::AddOptions {
+        quality_profile_id: profile,
+        root_folder: root.clone(),
+        path: None,
+        monitored: true,
+        monitor: "all".into(),
+        series_type: "anime".into(),
+        season_folder: true,
+        tags: vec![],
+        seasons: None,
+    };
+    let show = server::series::add(&st.db, &info, eps, &o).unwrap();
+    // a plain TV series stays out of the Anime tab
+    let tv = server::tmdb::SeriesInfo { tmdb_id: 1, tvdb_id: 2, title: "The Bear".into(), seasons: vec![1], ..Default::default() };
+    let o_tv = server::series::AddOptions { series_type: "standard".into(), ..o.clone() };
+    server::series::add(&st.db, &tv, vec![ep(1, 1, &soon)], &o_tv).unwrap();
+
+    let (s, lib) = call(&app, "GET", "/api/anime/library", None).await;
+    assert_eq!(s, StatusCode::OK, "{lib}");
+    let titles: Vec<&str> = lib.as_array().unwrap().iter().map(|e| e["title"].as_str().unwrap()).collect();
+    assert_eq!(titles, ["Frieren Season 2", "Frieren: Beyond Journey's End"], "each season is its own entry, named by AniList");
+    let s2 = &lib[0];
+    assert_eq!((s2["season"].as_i64(), s2["status"].as_str(), s2["series_id"].as_i64()), (Some(2), Some("Airing"), Some(show.id)));
+    assert_eq!(s2["next_episode"]["episode"], 5);
+    assert_eq!(s2["poster"], "https://img/x.jpg", "AniList's poster");
+    let kept = kit_server_core::Db::one(&st.db, "SELECT COUNT(*) AS n FROM anime_anilist", kit_server_core::p![]).unwrap().unwrap();
+    assert_eq!(kept["n"].as_i64(), Some(2), "AniList's answers are kept");
+
+    // the Sonarr API still sees an anime series with absolute numbers
+    let (_, sonarr) = call(&app, "GET", "/sonarr/api/v3/series", None).await;
+    let frieren = sonarr.as_array().unwrap().iter().find(|x| x["tvdbId"] == 424536).unwrap();
+    assert_eq!(frieren["seriesType"], "anime", "{sonarr}");
+    let (_, eps) = call(&app, "GET", &format!("/sonarr/api/v3/episode?seriesId={}", show.id), None).await;
+    let absolute: Vec<i64> = eps.as_array().unwrap().iter().filter_map(|e| e["absoluteEpisodeNumber"].as_i64()).collect();
+    assert_eq!(absolute, [1, 2, 3, 4], "{eps}");
+
+    let (s, cal) = call(&app, "GET", "/api/anime/calendar", None).await;
+    assert_eq!(s, StatusCode::OK, "{cal}");
+    assert_eq!(cal.as_array().unwrap().len(), 1, "The Bear's episode isn't anime: {cal}");
+    assert_eq!((cal[0]["series_kind"].as_str(), cal[0]["absolute"].as_i64()), (Some("anime"), Some(4)));
+    assert_eq!(call(&app, "GET", "/api/anime/activity", None).await.1, json!([]));
+
+    let (s, d) = call(&app, "GET", "/api/anime/discover?list=season", None).await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["results"][0]["series_id"].as_i64(), Some(show.id), "already in the library: {d}");
+    assert_eq!(d["results"][0]["media_type"], "tv");
+    let (_, d) = call(&app, "GET", "/api/anime/discover?list=top&studio=Madhouse&genre=Fantasy", None).await;
+    let names: Vec<&str> = d["results"].as_array().unwrap().iter().map(|e| e["title"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Frieren: Beyond Journey's End"], "the studio's anime, narrowed to the genre");
+    let (s, v) = call(&app, "GET", "/api/anime/discover?list=sometime", None).await;
+    assert_eq!((s, v["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("Pick trending, this season, upcoming or top rated")));
+    assert_eq!(call(&app, "GET", "/api/anime/genres", None).await.1, json!(["Action", "Fantasy"]));
 }

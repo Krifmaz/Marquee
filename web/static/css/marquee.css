@@ -9,3 +9,16 @@
 @media (max-width: 760px) {
   .posters { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
 }
+/* the phone's bottom bar (Movies, TV, Anime, Activity, More); the sidebar folds away below 900px and More opens it */
+.tabbar { display: none; }
+.sidebar-veil { display: none; }
+@media (max-width: 900px) {
+  .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: var(--bg-2);
+    border-top: 1px solid var(--border); padding: 4px 4px max(4px, env(safe-area-inset-bottom)); }
+  .tabbar a, .tabbar button { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; min-height: 48px;
+    border: 0; background: transparent; border-radius: 10px; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer;
+    text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tabbar a.active, .tabbar button.active { color: var(--text); background: var(--panel-2); }
+  .main { padding-bottom: calc(var(--player) + 90px); }
+  .sidebar-veil.open { display: block; position: fixed; inset: 0; z-index: 55; background: var(--bg); opacity: .6; }
+}
