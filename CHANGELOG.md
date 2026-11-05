@@ -10,6 +10,9 @@
 - Plex and Jellyfin, and everything jfa-go did: Settings → Media servers (Jellyfin, Plex, sign-up and mail), Media access (whether each server answers, Scan now, each account's Jellyfin user and Plex share with its libraries and end date, linking existing users), Invites (one-time or multi-use links with an end date, role, servers and libraries; sent by mail), a public sign-up page, password reset by mail, accounts that end on a date with a reminder first, sign-in with Plex or Jellyfin, and "available" from either server. Accounts are made only in Marquee; Jellyfin and Plex follow every change (made, password, turned off, removed).
 - Android app (android/, on the kit's kit-compose in the Encore look): sign in with your Marquee account, a week-by-week calendar of movies and episodes, the download queue (admins can stop a download) and the library with search; each list keeps a copy for offline use. `GET /api/calendar` gives movies and episodes in one list. An APK is built for every pull request that changes the app.
 
+### Fixed
+- On the very first start, adding a movie or series right away could say "There is no such quality profile": the TRaSH defaults are now set up before Marquee answers anyone.
+
 ## 0.1.0
 
 ### Changed
