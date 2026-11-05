@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+- First release, v0.1.0: the release hold is lifted, so every merge to main is a release from now on.
+
+## 0.1.0
+
 ### Added
 - TRaSH Guides by default: on the first start Marquee adds TRaSH's quality profiles, custom formats and scores, quality sizes and naming for movies, TV and anime (HD Bluray + WEB, WEB-1080p, [Anime] Remux-1080p, Jellyfin naming) and makes them the default. A short wizard on the new Quality page picks 1080p/2160p and WEB/Blu-ray/Remux and the media server. Every 24 hours it looks for TRaSH updates on GitHub, updates what you haven't changed, lists what changed, and asks before touching anything you edited. Custom format scores now choose between releases, and the Radarr and Sonarr APIs list the custom formats and TRaSH naming.
 - Requests: Discover (trending and search from TMDB) and Requests pages; ask for a movie or chosen seasons, admins approve or decline, approved titles go into the library and are searched for, and each request shows Waiting for approval, Approved, Downloading or Available. Per-account limits and auto-approve, anime requests with a language choice (Dub only, Dual audio, Sub only, subtitle language) and AniList's seasons, news to Discord and ntfy, and the Seerr API at `/api/v1` (requests, media, users, discover, search) checked against real Jellyseerr 2.7.3 answers.

@@ -54,3 +54,4 @@ One line per call that was not obvious.
 - 2026-11-05 · Anime preferences (dub, dual or sub, dub language, subtitle language) live in their own `anime_prefs` table keyed by user, so core doesn't edit `users.rs`, which the media servers track owns.
 - 2026-11-05 · Anime ids come from Fribb's anime-lists (`anime-list-full.json`), refreshed daily; set the list address to `off` to stop it. AniList is read through its public GraphQL API; tests use a local stand-in.
 - 2026-11-05 · When a file's real tracks don't match the requested audio, Marquee searches again by default (`anime_mismatch = research`); `review` puts it in the Review queue instead, where the owner keeps or rejects it.
+- 2026-11-05 · v0.1.0 ships with movies, TV, downloads through Lantern and TRaSH defaults working end to end, plus requests and the first part of anime, which merged before it. The release hold file is gone, so every merge to main is a release from now on.
