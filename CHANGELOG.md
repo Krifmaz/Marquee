@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Movies: TMDB search and details, a Movies page with posters and Add, and the Radarr v3 API at `/radarr` (movies, lookup, calendar, wanted, queue, history, quality profiles, root folders, tags, indexers for Prowlarr, commands), checked against real Radarr 6.4 answers.
+- The server makes its API key on the first start (Settings → General).
 - Accounts shared by requests, movies and TV: roles (owner, admin, can request, read-only), per-account request limits and auto-approve, Settings → Accounts.
 - Root folders for movies, TV and anime, with free space, in Settings → Folders.
 - Settings → Connections: the Lantern address and API key, and the TMDB key.

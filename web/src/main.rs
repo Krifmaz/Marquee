@@ -5,12 +5,14 @@
 //! | everywhere | toasts with Copy, the details dialog, the data folder notice with Check again, the offline and connection banners, self-update after a new server build |
 //! | after signing in | the What's new popup, once per release |
 //! | `#/` | Home: the app's own start page (a bug report button to begin with) |
+//! | `#/movies` | every movie as a poster, TMDB search and Add (admins) |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
 //!
 //! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`].
 
 mod accounts;
+mod movies;
 mod pages;
 
 use kit_leptos::api::{self, HttpBackend};
@@ -174,6 +176,7 @@ fn Shell(me: Value) -> impl IntoView {
         let r = route.get();
         match r.path.as_str() {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
+            "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
             _ => view! { <pages::Home/> }.into_any(),
         }
@@ -184,6 +187,7 @@ fn Shell(me: Value) -> impl IntoView {
                 <a class="brand" href="#/">{name}</a>
                 <nav class="nav">
                     <NavLink href="/" label="Home" route=route/>
+                    <NavLink href="/movies" label="Movies" route=route/>
                 </nav>
                 <nav class="nav nav-under">
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>

@@ -14,3 +14,11 @@ One line per call that was not obvious.
 - 2026-11-05 · Roles are stored as `owner`, `admin`, `requester` and `viewer`; the template's `user` becomes `requester`. Quotas are per account (0 = no limit, a period in days) with defaults for new accounts in Settings → General.
 - 2026-11-05 · Root folders are one shared table with a kind (`movie`, `tv`, `anime`), so the Radarr and Sonarr APIs each answer with their own kind and one disk check covers all.
 - 2026-11-05 · Settings → Connections holds only the Lantern address and key and the TMDB key; no download client or indexer settings exist (downloads go through Lantern).
+- 2026-11-05 · The Radarr API is served under `/radarr` (base URL `http://marquee:8080/radarr`) and the Sonarr API will be under `/sonarr`: both apps answer `/api/v3/queue`, `/calendar` and more with different things, and every client (Prowlarr, Seerr, Homepage, nzb360, LunaSea) takes a base URL with a path.
+- 2026-11-05 · `system/status` answers `appName: Radarr` and Radarr's version (6.4.4) so clients' version checks pass; Marquee's own version is in `packageVersion`.
+- 2026-11-05 · Contract tests compare Marquee's answers with real Radarr 6.4.4 answers recorded from the linuxserver image (TMDB was out of reach, so the movies were put into Radarr's database directly; the answers are Radarr's own serialisation).
+- 2026-11-05 · The starter movie quality profiles and the quality list are Radarr's defaults (data files), so existing tools find what they expect; the TRaSH step makes TRaSH's profiles the default.
+- 2026-11-05 · Indexers Prowlarr pushes are kept (secrets masked as Radarr does) and not used for searching: downloads go through Lantern. The downloads step decides whether they are handed to Lantern.
+- 2026-11-05 · `DELETE movie?deleteFiles=true` forgets the movie but never deletes media files for now; deleting files needs the files step and stays an explicit choice.
+- 2026-11-05 · When TMDB can't be asked (no key or unreachable), a Radarr-API add keeps the details the caller sent, so Seerr and migrations still work; the next refresh fills in the rest.
+- 2026-11-05 · The server makes its API key on the first start (Settings → General) because Prowlarr and Seerr need one.

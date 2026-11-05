@@ -44,6 +44,17 @@ docker run --read-only -p 8080:8080 -v marquee-data:/data marquee
 | `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` | the owner made at the first start | `admin`, a printed password |
 | `APP_NAME`, `APP_SESSION_DAYS`, `APP_API_KEY` | settings (settings.toml); set here they are locked in Settings | |
 
+## Connecting tools
+
+Marquee speaks the Radarr v3 API, so tools made for Radarr work unchanged. Use Marquee's API key (Settings →
+General) and these addresses:
+
+| Tool | Address |
+| --- | --- |
+| Prowlarr (Apps → Radarr), Seerr, Homepage, nzb360, LunaSea | `http://<marquee>:8080/radarr` |
+
+Movie information comes from TMDB: add a free API key in Settings → Connections.
+
 ## Checks
 
 In `server/`, `web/` and `desktop/`: `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
