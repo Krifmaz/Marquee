@@ -1,0 +1,2 @@
+While this file exists, merges to main make no release. The v0.1.0 pull request deletes it
+(movies, TV, downloads and TRaSH defaults working end to end). See docs/GOALS.md.
