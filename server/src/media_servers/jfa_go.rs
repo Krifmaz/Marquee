@@ -27,7 +27,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use kit_server_core::{err, p, Db, Result, RowExt};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 /// The route of this module.
 pub fn router() -> Router<AppState> {
@@ -74,19 +74,23 @@ impl Plan {
         self.items.push(Item { title: title.into(), action, detail: detail.into() });
     }
 
-    /// The report as the Settings page reads it (the same fields as every other source).
-    pub fn report(&self, applied: bool) -> Value {
+    /// The report as the Move in page reads it: core's [`crate::migrate::Report`], like every other source.
+    pub fn report(&self, applied: bool) -> crate::migrate::Report {
         let count = |a: &str| self.items.iter().filter(|i| i.action == a).count();
-        json!({
-            "source": "jfa-go",
-            "applied": applied,
-            "added": count("add"),
-            "skipped": count("skip"),
-            "problems": count("problem"),
-            "files": 0,
-            "notes": self.notes,
-            "items": self.items.iter().map(|i| json!({ "title": i.title, "action": i.action, "detail": i.detail, "files": 0 })).collect::<Vec<_>>(),
-        })
+        crate::migrate::Report {
+            source: "jfa-go".into(),
+            applied,
+            added: count("add"),
+            skipped: count("skip"),
+            problems: count("problem"),
+            files: 0,
+            notes: self.notes.clone(),
+            items: self
+                .items
+                .iter()
+                .map(|i| crate::migrate::Item { title: i.title.clone(), action: i.action.into(), detail: i.detail.clone(), files: 0 })
+                .collect(),
+        }
     }
 }
 
@@ -148,7 +152,7 @@ impl Jfa {
 }
 
 /// `POST /api/migrate/jfa-go`.
-async fn migrate(State(st): State<AppState>, me: Me, Json(b): Json<Source>) -> Result<Json<Value>> {
+async fn migrate(State(st): State<AppState>, me: Me, Json(b): Json<Source>) -> Result<Json<crate::migrate::Report>> {
     me.admin()?;
     let plan = run(&st, &b).await?;
     Ok(Json(plan.report(b.apply)))
