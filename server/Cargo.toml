@@ -49,7 +49,7 @@ regex = "1"
 tower = { version = "0.5", features = ["util"] }
 # ---- the tracks' own dependencies (docs/TRACKS.md): each track adds lines only under its own comment ----
 # TRaSH track
-fancy-regex = "0.14"
+fancy-regex = "0.20"
 # requests track
 # media servers track
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls", "hostname"] }
