@@ -91,6 +91,10 @@ pub mod perm {
     pub const REQUEST_TV: i64 = 524288;
     /// see other people's watchlists
     pub const WATCHLIST_VIEW: i64 = 134217728;
+    /// add to and take off the blocklist
+    pub const MANAGE_BLOCKLIST: i64 = 268435456;
+    /// see the blocklist
+    pub const VIEW_BLOCKLIST: i64 = 1073741824;
 }
 
 /// Seerr's `hasPermission(bits, value, {type: 'or'})` for the account `u`: admins have every bit.
@@ -960,7 +964,7 @@ pub struct UserQuery {
 
 /// An account as somebody else sees it: without the mail address, Plex id and settings unless the viewer may
 /// manage accounts or it is their own (Seerr's `User.filter`).
-fn shown_user(db: &SqliteDb, u: &Row, full: bool) -> kit_server_core::Result<Value> {
+pub fn shown_user(db: &SqliteDb, u: &Row, full: bool) -> kit_server_core::Result<Value> {
     let mut v = user_json(db, u)?;
     if !full {
         if let Some(o) = v.as_object_mut() {

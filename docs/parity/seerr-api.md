@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**64 done, 0 stub, 153 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**70 done, 0 stub, 147 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -21,12 +21,12 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `POST` | `/blacklist` | ⬜ Missing | Add media to blocklist |
 | `DELETE` | `/blacklist/{tmdbId}` | ⬜ Missing | Remove media from blocklist |
 | `GET` | `/blacklist/{tmdbId}` | ⬜ Missing | Get media from blocklist |
-| `GET` | `/blocklist` | ⬜ Missing | Returns blocklisted items |
-| `POST` | `/blocklist` | ⬜ Missing | Add media to blocklist |
-| `DELETE` | `/blocklist/collection/{collectionId}` | ⬜ Missing | Remove collection from blocklist |
-| `POST` | `/blocklist/collection/{collectionId}` | ⬜ Missing | Add collection to blocklist |
-| `DELETE` | `/blocklist/{tmdbId}` | ⬜ Missing | Remove media from blocklist |
-| `GET` | `/blocklist/{tmdbId}` | ⬜ Missing | Get media from blocklist |
+| `GET` | `/blocklist` | ✅ Done | Returns blocklisted items |
+| `POST` | `/blocklist` | ✅ Done | Add media to blocklist |
+| `DELETE` | `/blocklist/collection/{collectionId}` | ✅ Done | Remove collection from blocklist |
+| `POST` | `/blocklist/collection/{collectionId}` | ✅ Done | Add collection to blocklist |
+| `DELETE` | `/blocklist/{tmdbId}` | ✅ Done | Remove media from blocklist |
+| `GET` | `/blocklist/{tmdbId}` | ✅ Done | Get media from blocklist |
 | `GET` | `/certifications/movie` | ⬜ Missing | Get movie certifications |
 | `GET` | `/certifications/tv` | ⬜ Missing | Get TV certifications |
 | `GET` | `/collection/{collectionId}` | ⬜ Missing | Get collection details |
