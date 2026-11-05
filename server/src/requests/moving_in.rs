@@ -17,7 +17,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use kit_server_core::{err, p, Db, Result, Row, RowExt, SqliteDb};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 /// The route.
 pub fn router() -> Router<AppState> {
@@ -48,7 +48,7 @@ pub struct Line {
 }
 
 /// `POST /api/migrate/seerr` (admins): moves in Seerr's people's limits and its requests.
-async fn run(State(st): State<AppState>, me: Me, Json(b): Json<Source>) -> Result<Json<Value>> {
+async fn run(State(st): State<AppState>, me: Me, Json(b): Json<Source>) -> Result<Json<crate::migrate::Report>> {
     me.admin()?;
     let base = api_base(&b.url)?;
     let users = fetch_all(&st, &base, &b.api_key, "/user").await?;
@@ -57,20 +57,25 @@ async fn run(State(st): State<AppState>, me: Me, Json(b): Json<Source>) -> Resul
     if b.apply {
         tracing::info!("{} moved in requests from Seerr", me.account.username);
     }
-    Ok(Json(report(b.apply, &lines)))
+    Ok(Json(report(b.apply, lines)))
 }
 
-/// The answer: how many lines of each kind, and every line.
-pub fn report(applied: bool, lines: &[Line]) -> Value {
+/// The shared migration report: how many lines of each kind, and every line.
+pub fn report(applied: bool, lines: Vec<Line>) -> crate::migrate::Report {
     let n = |a: &str| lines.iter().filter(|l| l.action == a).count();
-    json!({
-        "source": "seerr",
-        "applied": applied,
-        "added": n("add"),
-        "skipped": n("skip"),
-        "problems": n("problem"),
-        "items": lines.iter().map(|l| json!({ "title": l.title, "action": l.action, "detail": l.detail, "files": [] })).collect::<Vec<_>>(),
-    })
+    crate::migrate::Report {
+        source: "seerr".into(),
+        applied,
+        added: n("add"),
+        skipped: n("skip"),
+        problems: n("problem"),
+        files: 0,
+        notes: vec![],
+        items: lines
+            .into_iter()
+            .map(|l| crate::migrate::Item { title: l.title, action: l.action.into(), detail: l.detail, files: 0 })
+            .collect(),
+    }
 }
 
 /// Seerr's API address from what a person typed: `http://seerr:5055`, with or without `/api/v1` and a trailing `/`.
@@ -363,6 +368,7 @@ pub async fn move_in(st: &AppState, users: &[Value], requests: &[Value], apply: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn addresses_and_limits_read_like_seerrs() {
