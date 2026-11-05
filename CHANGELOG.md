@@ -4,6 +4,7 @@
 
 ### Added
 - The Sonarr and Radarr APIs answer what their own web apps load first: the interface strings (localization, in English), saved list filters (custom filters, kept per app), indexer flags and Radarr's collections list (empty until collections come over).
+- Seerr's discover rows (`/api/v1/settings/discover`, ported from Seerr 3.5.1): the twelve built-in rows, reordering and turning them off, rows of your own, and reset. `GET /api/v1/issue/count` answers zeros until issues come, and any other unknown `/api/v1` path now answers a JSON "not found" instead of the web app's page, so Seerr's own web app doesn't break.
 - Parity checklist: docs/PARITY.md lists every Sonarr, Radarr and Seerr module, API endpoint and UI page to port, with where Marquee stands today; UPSTREAM.lock pins the exact upstream commits, and scripts/parity.py rewrites the endpoint tables from them.
 - Release qualities are now read by Sonarr's and Radarr's own quality rules, ported line by line: movies get Radarr's qualities (CAM, TELESYNC, BR-DISK, Remux and the rest) and TV gets Sonarr's, proper, repack and anime v2/v3 count as upstream, and the upstream test cases run with every build.
 - Android app: an Anime tab in the bottom bar, its own section with Library (each season its own entry, AniList posters, a countdown to the next episode), Discover (trending, this season, upcoming, top rated, by genre or studio) with Request that asks Dub only, Dual audio or Sub only and the subtitle language (your default first), and the calendar and queue for anime only.

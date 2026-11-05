@@ -512,6 +512,55 @@ async fn media_routes_follow_seerr_routes_media_ts() {
 }
 
 #[tokio::test]
+async fn discover_rows_and_unknown_paths_answer_like_seerr() {
+    let (app, _) = server("sliders").await;
+    let sam = id_of(&app, "sam").await;
+    let (s, rows) = call(&app, "GET", "/settings/discover", Some(sam), None).await;
+    assert_eq!(s, StatusCode::OK, "{rows}");
+    let types: Vec<i64> = rows.as_array().unwrap().iter().map(|r| r["type"].as_i64().unwrap()).collect();
+    assert_eq!(types, (1..=12).collect::<Vec<_>>(), "Seerr's twelve built-in rows in order");
+    assert_eq!(rows[0]["isBuiltIn"], true);
+    let (s, _) =
+        call(&app, "POST", "/settings/discover/add", Some(sam), Some(json!({ "type": 17, "title": "Space", "data": "space" }))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "admins only");
+    let (_, added) =
+        call(&app, "POST", "/settings/discover/add", None, Some(json!({ "type": 17, "title": "Space", "data": "space" }))).await;
+    assert_eq!((added["enabled"].as_bool(), added["order"].as_i64(), added["isBuiltIn"].as_bool()), (Some(false), Some(-1), Some(false)));
+    let new_id = added["id"].as_i64().unwrap();
+    // move the new row first, turn it on, turn "Recently added" off
+    let mut list: Vec<Value> = vec![json!({ "id": new_id, "enabled": true, "type": 17, "title": "Space", "data": "space" })];
+    for r in rows.as_array().unwrap() {
+        let mut r = r.clone();
+        if r["type"] == 1 {
+            r["enabled"] = json!(false);
+        }
+        list.push(r);
+    }
+    assert_eq!(call(&app, "POST", "/settings/discover", None, Some(json!(list))).await.0, StatusCode::OK);
+    let (_, rows) = call(&app, "GET", "/settings/discover", None, None).await;
+    assert_eq!((rows[0]["id"].as_i64(), rows[0]["enabled"].as_bool()), (Some(new_id), Some(true)));
+    assert_eq!((rows[1]["type"].as_i64(), rows[1]["enabled"].as_bool()), (Some(1), Some(false)));
+    let builtin = rows[1]["id"].as_i64().unwrap();
+    let (s, e) = call(&app, "DELETE", &format!("/settings/discover/{builtin}"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Slider not found or cannot be deleted.")));
+    let (_, changed) =
+        call(&app, "PUT", &format!("/settings/discover/{new_id}"), None, Some(json!({ "type": 17, "title": "Stars", "data": "stars" })))
+            .await;
+    assert_eq!(changed["title"], "Stars");
+    assert_eq!(call(&app, "DELETE", &format!("/settings/discover/{new_id}"), None, None).await.0, StatusCode::NO_CONTENT);
+    assert_eq!(call(&app, "GET", "/settings/discover/reset", None, None).await.0, StatusCode::NO_CONTENT);
+    let (_, rows) = call(&app, "GET", "/settings/discover", None, None).await;
+    assert_eq!(rows.as_array().unwrap().len(), 12);
+    assert_eq!(rows[0]["enabled"], true, "reset turns every built-in row back on");
+
+    let (s, count) = call(&app, "GET", "/issue/count", Some(sam), None).await;
+    assert_eq!((s, count["total"].as_i64()), (StatusCode::OK, Some(0)));
+    let (s, e) = call(&app, "GET", "/no/such/thing", None, None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert!(e["message"].as_str().unwrap().contains("/api/v1/no/such/thing"), "JSON, not the web app's page: {e}");
+}
+
+#[tokio::test]
 async fn discover_and_search_come_from_tmdb_with_what_was_asked_for() {
     let (app, _) = server("discover").await;
     let sam = id_of(&app, "sam").await;

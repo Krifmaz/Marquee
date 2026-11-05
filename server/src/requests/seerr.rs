@@ -26,6 +26,8 @@
 //!        /tv/{id}/season/{n}, /tv/{id}/recommendations|similar
 //! GET    /tv/{id}/anilist                    Marquee's own: AniList's seasons of an anime
 //! POST   /settings/notifications/test        Marquee's own: a test notification to every place set up (admins)
+//! GET    /issue/count                         zeros until issues are ported
+//! anything else under /api/v1                 a JSON 404 (discover's rows are in [`super::sliders`])
 //! ```
 
 use super::{
@@ -154,7 +156,7 @@ impl FromRequestParts<AppState> for Seerr {
 
 impl Seerr {
     /// `Ok` when the account has any of `bits`, else Seerr's 403.
-    fn needs(&self, bits: &[i64]) -> std::result::Result<(), Fail> {
+    pub fn needs(&self, bits: &[i64]) -> std::result::Result<(), Fail> {
         if self.0.has(bits) {
             Ok(())
         } else {
@@ -207,8 +209,21 @@ pub fn router() -> Router<AppState> {
         .route("/tv/{id}/anilist", get(anilist))
         .route("/tv/{id}/season/{n}", get(tv_season))
         .route("/tv/{id}/{list}", get(tv_list))
-        .route("/settings/notifications/test", post(test_notifications));
+        .route("/settings/notifications/test", post(test_notifications))
+        .route("/issue/count", get(issue_count))
+        .fallback(no_such_path);
     Router::new().nest("/api/v1", v1)
+}
+
+/// Any `/api/v1` path Seerr's API doesn't have here: a JSON 404, so Seerr's web app and clients never get the web
+/// app's page where they expect JSON.
+async fn no_such_path(axum::extract::OriginalUri(uri): axum::extract::OriginalUri) -> Fail {
+    Fail(err(404, format!("There is nothing at {} here.", uri.path())))
+}
+
+/// `GET /issue/count`: Seerr's issue counts, all zero until the issues module is ported.
+async fn issue_count(_s: Seerr) -> Answer {
+    ok(json!({ "total": 0, "video": 0, "audio": 0, "subtitles": 0, "others": 0, "open": 0, "closed": 0 }))
 }
 
 /// Seerr's Seerr-style permission bits for an account.
