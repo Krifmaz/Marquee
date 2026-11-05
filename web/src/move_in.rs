@@ -8,8 +8,8 @@ use kit_leptos::toasts::toast;
 use leptos::prelude::*;
 use serde_json::{json, Value};
 
-/// One source on the page: its route, its name, and whether it signs in with a username and password (jfa-go)
-/// instead of an API key.
+/// One source on the page: its route, its name, whether it signs in with a username and password (jfa-go)
+/// instead of an API key, and whether it needs path rewrites.
 struct Source {
     /// the server route after `/api`
     route: &'static str,
@@ -21,8 +21,8 @@ struct Source {
     password: bool,
     /// where the key is, in words
     hint: &'static str,
-    /// whether the server has its route yet (jfa-go and Seerr come with the media servers and requests tracks)
-    ready: bool,
+    /// whether the other app sees folders, so the page offers path rewrites (Radarr and Sonarr)
+    paths: bool,
 }
 
 /// The sources, in the order they are best moved in (accounts before the requests that name them).
@@ -33,7 +33,7 @@ const SOURCES: [Source; 4] = [
         example: "http://radarr:7878",
         password: false,
         hint: "Radarr → Settings → General → API Key",
-        ready: true,
+        paths: true,
     },
     Source {
         route: "/migrate/sonarr",
@@ -41,7 +41,7 @@ const SOURCES: [Source; 4] = [
         example: "http://sonarr:8989",
         password: false,
         hint: "Sonarr → Settings → General → API Key",
-        ready: true,
+        paths: true,
     },
     Source {
         route: "/migrate/jfa-go",
@@ -49,7 +49,7 @@ const SOURCES: [Source; 4] = [
         example: "http://jfa-go:8056",
         password: true,
         hint: "jfa-go's admin username and password",
-        ready: false,
+        paths: false,
     },
     Source {
         route: "/migrate/seerr",
@@ -57,7 +57,7 @@ const SOURCES: [Source; 4] = [
         example: "http://seerr:5055",
         password: false,
         hint: "Seerr → Settings → General → API Key",
-        ready: false,
+        paths: false,
     },
 ];
 
@@ -76,7 +76,11 @@ fn body(src: &Source, url: &str, key: &str, user: &str, maps: &str, apply: bool)
     if src.password {
         json!({ "url": url.trim(), "username": user.trim(), "password": key, "apply": apply })
     } else {
-        json!({ "url": url.trim(), "api_key": key.trim(), "apply": apply, "path_map": path_map(maps) })
+        let mut b = json!({ "url": url.trim(), "api_key": key.trim(), "apply": apply });
+        if src.paths {
+            b["path_map"] = path_map(maps);
+        }
+        b
     }
 }
 
@@ -164,7 +168,7 @@ fn SourceCard(index: usize) -> impl IntoView {
             <label class="field"><span>{if src.password { "Password" } else { "API key" }}</span>
                 <input class="input" type="password" autocomplete="off" prop:value=key on:input=move |e| { set_key.set(event_target_value(&e)); edited() }/>
                 <small class="faint">{src.hint}</small></label>
-            {(!src.password).then(|| view! {
+            {src.paths.then(|| view! {
                 <label class="field"><span>"Path rewrites (optional)"</span>
                     <textarea class="input" rows="2" placeholder="/movies => /data/media/movies" prop:value=maps
                         on:input=move |e| { set_maps.set(event_target_value(&e)); edited() }></textarea>
@@ -188,7 +192,7 @@ pub fn MoveIn() -> impl IntoView {
     view! {
         <h1>"Move in"</h1>
         <p class="muted" style="max-width:640px">"Bring your movies, series, accounts and requests over from the apps Marquee replaces. Check first: it changes nothing and lists what will happen. Your files stay where they are."</p>
-        {(0..SOURCES.len()).filter(|i| SOURCES[*i].ready).map(|i| view! { <SourceCard index=i/> }).collect_view()}
+        {(0..SOURCES.len()).map(|i| view! { <SourceCard index=i/> }).collect_view()}
     }
 }
 
@@ -211,5 +215,17 @@ mod tests {
         let b = body(&SOURCES[0], "http://radarr:7878", " key ", "", "/a => /b", true);
         assert_eq!(b["api_key"], "key");
         assert_eq!(b["path_map"][0]["to"], "/b");
+    }
+
+    #[test]
+    fn seerr_sends_only_its_address_and_key() {
+        let b = body(&SOURCES[3], "http://seerr:5055", "key", "", "/a => /b", false);
+        assert_eq!(b, json!({ "url": "http://seerr:5055", "api_key": "key", "apply": false }));
+    }
+
+    #[test]
+    fn every_source_is_on_the_page() {
+        let routes: Vec<&str> = SOURCES.iter().map(|s| s.route).collect();
+        assert_eq!(routes, ["/migrate/radarr", "/migrate/sonarr", "/migrate/jfa-go", "/migrate/seerr"]);
     }
 }
