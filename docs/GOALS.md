@@ -29,10 +29,11 @@ From the owner's message of 2026-11-05, one pull request each:
 4. TV (Sonarr API).
 5. Downloads through Lantern and import with hardlinks.
 6. TRaSH profiles and sync.
-7. Requests (Seerr API).
-8. Plex/Jellyfin connection and account sync, with the jfa-go replacement (invites, sign-up, password reset, expiry).
-9. Migration from the owner's existing Sonarr, Radarr, Seerr and jfa-go (invites and users), each with a dry run.
-10. Android app.
+7. Anime as its own media type (mappings, language choice, TRaSH anime profiles, track check, Review queue).
+8. Requests (Seerr API), with AniList data and the language choice on anime requests.
+9. Plex/Jellyfin connection and account sync, with the jfa-go replacement (invites, sign-up, password reset, expiry).
+10. Migration from the owner's existing Sonarr, Radarr, Seerr and jfa-go (invites and users), each with a dry run.
+11. Android app.
 
 ## Changes since
 
@@ -51,6 +52,14 @@ From the owner's message of 2026-11-05, one pull request each:
   expiry with reminders, and disabling or deleting a user everywhere at once. Marquee is the one place accounts are
   made; it creates and updates the matching Jellyfin user (and Plex share) automatically, and the user's Jellyfin
   password is the one they set in Marquee. Existing jfa-go invites and users are imported once, with a dry run.
+- 2026-11-05 · **Anime is its own media type**, with its own root folder (`/data/media/anime`), profiles and naming.
+  Titles are mapped with the community anime mapping lists (AniDB/AniList/MAL ↔ TVDB/TMDB) so requests, seasons,
+  specials/OVAs and absolute episode numbering always line up. Every anime request has a language choice: Dub only /
+  Dual audio / Sub only, plus a subtitle language; users set a default and can change it per request. TRaSH's anime
+  quality profiles and custom formats (dual audio, dubs only, release-group tiers) are the defaults. After download,
+  the real audio and subtitle tracks are checked with ffprobe; if they don't match the request (for example no
+  English audio on a dub-only request), the download is rejected and searched again, or sent to a Review queue with
+  the reason. Request pages show AniList data (seasons as separate entries, airing status) and the chosen language.
 
 **v0.1.0** ships when movies, TV, downloads and the TRaSH defaults work end to end. Until then `docs/RELEASE_HOLD`
 keeps the release workflow from publishing; the v0.1.0 pull request deletes it.
