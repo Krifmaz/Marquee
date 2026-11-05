@@ -1,11 +1,10 @@
-//! Qualities and quality profiles, kept per media kind (`movie` and `tv`; `anime` later): which qualities
-//! a profile takes, in what order, and where it stops upgrading. A profile is kept in the shape the Radarr and
-//! Sonarr APIs use (`name`, `upgradeAllowed`, `cutoff`, `items`, `formatItems`…), so those APIs hand it over
-//! as it is.
+//! Qualities and quality profiles, kept per media kind (`movie`, `tv` and `anime`): which qualities a profile
+//! takes, in what order, and where it stops upgrading. A profile is kept in the shape the Radarr and Sonarr APIs
+//! use (`name`, `upgradeAllowed`, `cutoff`, `items`, `formatItems`…), so those APIs hand it over as it is.
 //!
 //! The first start fills in the standard quality lists and starter profiles from `data/radarr/` and
-//! `data/sonarr/` (the TRaSH
-//! profiles replace them as the default in a later step).
+//! `data/sonarr/`; then [`crate::trash`] puts in TRaSH's profiles, sizes and custom formats and makes its
+//! profiles the default (anime's quality list is a copy of TV's, with TRaSH's anime sizes).
 //!
 //! ```text
 //! GET    /api/quality-profiles?kind=movie   → [profile] (signed in)

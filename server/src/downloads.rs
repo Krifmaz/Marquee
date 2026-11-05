@@ -361,8 +361,8 @@ pub enum Search {
 /// The profile and size rules for an item of `kind` with profile `profile_id`.
 fn rules(db: &SqliteDb, kind: &str, profile_id: i64) -> Result<(Profile, Sizes)> {
     let body = crate::quality::profile(db, profile_id)?.ok_or_else(|| err(400, "Its quality profile is gone. Pick another one."))?;
-    let k = if kind == "movie" { "movie" } else { "tv" };
-    Ok((Profile::read(&body), Sizes::read(&crate::quality::definitions(db, k)?)))
+    let formats = crate::trash::formats(db, kind);
+    Ok((Profile::read(&body).with_formats(&formats), Sizes::read(&crate::quality::definitions(db, kind)?)))
 }
 
 /// The movie file of a movie: (path, quality name).
