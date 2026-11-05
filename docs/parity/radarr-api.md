@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.10685 ([`a96bf7c3ec`](https://github.com/Radarr/Radarr/tree/a96bf7c3ecb23cb76993770727285dc17a613fbc)). Marquee serves it under `/radarr`.
 
-**48 done, 11 stub, 178 missing of 237.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**56 done, 11 stub, 170 missing of 237.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee |
 | --- | --- | --- |
@@ -56,11 +56,11 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.1068
 | `PUT` | `/api/v3/config/ui/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/credit` | ⬜ Missing |
 | `GET` | `/api/v3/credit/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/customfilter` | ⬜ Missing |
-| `POST` | `/api/v3/customfilter` | ⬜ Missing |
-| `DELETE` | `/api/v3/customfilter/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/customfilter/{id}` | ⬜ Missing |
-| `PUT` | `/api/v3/customfilter/{id}` | ⬜ Missing |
+| `GET` | `/api/v3/customfilter` | ✅ Done |
+| `POST` | `/api/v3/customfilter` | ✅ Done |
+| `DELETE` | `/api/v3/customfilter/{id}` | ✅ Done |
+| `GET` | `/api/v3/customfilter/{id}` | ✅ Done |
+| `PUT` | `/api/v3/customfilter/{id}` | ✅ Done |
 | `GET` | `/api/v3/customformat` | ✅ Done |
 | `POST` | `/api/v3/customformat` | ⬜ Missing |
 | `DELETE` | `/api/v3/customformat/bulk` | ⬜ Missing |
@@ -131,8 +131,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.1068
 | `GET` | `/api/v3/indexerflag` | ✅ Done |
 | `GET` | `/api/v3/language` | ✅ Done |
 | `GET` | `/api/v3/language/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/localization` | ⬜ Missing |
-| `GET` | `/api/v3/localization/language` | ⬜ Missing |
+| `GET` | `/api/v3/localization` | ✅ Done |
+| `GET` | `/api/v3/localization/language` | ✅ Done |
 | `GET` | `/api/v3/log` | ⬜ Missing |
 | `GET` | `/api/v3/log/file` | ⬜ Missing |
 | `GET` | `/api/v3/log/file/update` | ⬜ Missing |
@@ -237,7 +237,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Radarr v6.4.4.1068
 | `GET` | `/api/v3/wanted/cutoff` | 🟡 Stub |
 | `GET` | `/api/v3/wanted/missing` | ✅ Done |
 | `GET` | `/content/{path}` | ⬜ Missing |
-| `GET` | `/feed/v3/calendar/radarr.ics` | ⬜ Missing |
+| `GET` | `/feed/v3/calendar/radarr.ics` | ✅ Done |
 | `GET` | `/login` | ⬜ Missing |
 | `POST` | `/login` | ⬜ Missing |
 | `GET` | `/logout` | ⬜ Missing |
