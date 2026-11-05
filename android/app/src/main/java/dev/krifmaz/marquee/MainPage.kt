@@ -44,6 +44,9 @@ enum class Tab(
     /** What comes out this week ([CalendarPage]). */
     Calendar("Calendar", R.drawable.ic_tab_calendar),
 
+    /** Asking for movies and series, and following the requests ([RequestsPage]). */
+    Requests("Requests", R.drawable.ic_tab_requests),
+
     /** What is downloading ([QueuePage]). */
     Queue("Queue", R.drawable.ic_tab_queue),
 
@@ -110,6 +113,7 @@ fun MainPage(app: App, base: String, bugs: BugReportsHost, open: (Page) -> Unit,
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (Tab.entries[tab]) {
                 Tab.Calendar -> CalendarPage(app)
+                Tab.Requests -> RequestsPage(app, me)
                 Tab.Queue -> QueuePage(app, me?.admin)
                 Tab.Library -> LibraryPage(app, me?.admin)
                 Tab.More -> HomePage(app, base, me, bugs, open, onChangeServer)

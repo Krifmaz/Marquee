@@ -105,13 +105,17 @@ data class Me(
     val admin: Boolean,
     /** The server's owner: may also reveal saved secrets in the settings forms. */
     val owner: Boolean,
+    /** May ask for movies and series (`can_request`; read-only accounts may not). */
+    val canRequest: Boolean = true,
 ) {
     /** Reading the answer. */
     companion object {
-        /** The account from `GET /api/auth/me` (`is_admin`, or a `role` of admin or owner). */
+        /** The account from `GET /api/auth/me` (`is_admin`, or a `role` of admin or owner; `can_request`). */
         fun of(o: JsonObject): Me {
             val role = o.str("role")
-            return Me(admin = o.bool("is_admin") || role == "admin" || role == "owner", owner = role == "owner")
+            val admin = o.bool("is_admin") || role == "admin" || role == "owner"
+            val canRequest = if (o.containsKey("can_request")) o.bool("can_request") else role != "viewer"
+            return Me(admin = admin, owner = role == "owner", canRequest = admin || canRequest)
         }
     }
 }
