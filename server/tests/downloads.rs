@@ -144,6 +144,7 @@ async fn server(name: &str) -> (Router, std::path::PathBuf, Arc<Mutex<Hub>>) {
         "MARQUEE_TMDB_URL" => Some(tmdb.clone()),
         "MARQUEE_LANTERN_URL" => Some(lantern.clone()),
         "MARQUEE_LANTERN_API_KEY" => Some("lantern-key".into()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
         _ => None,
     })
     .await
@@ -316,8 +317,13 @@ async fn without_lantern_a_search_says_what_to_do() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("static")).unwrap();
     std::fs::write(dir.join("static/index.html"), "<!doctype html>").unwrap();
-    let st =
-        server::AppState::open(&dir.join("data"), dir.join("static"), |n| (n == "APP_API_KEY").then(|| KEY.to_string())).await.unwrap();
+    let st = server::AppState::open(&dir.join("data"), dir.join("static"), |n| match n {
+        "APP_API_KEY" => Some(KEY.to_string()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        _ => None,
+    })
+    .await
+    .unwrap();
     server::auth::ensure_owner(&st, None, Some("correct horse battery".into())).unwrap();
     let app = server::app(st);
     let (s, v) = call(&app, "POST", "/api/lantern/sync", None).await;

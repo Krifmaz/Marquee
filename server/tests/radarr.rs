@@ -122,6 +122,7 @@ async fn server(name: &str) -> (Router, std::path::PathBuf) {
         "APP_API_KEY" => Some(KEY.to_string()),
         "MARQUEE_TMDB_API_KEY" => Some("tmdb-test-key".into()),
         "MARQUEE_TMDB_URL" => Some(tmdb.clone()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
         _ => None,
     })
     .await
