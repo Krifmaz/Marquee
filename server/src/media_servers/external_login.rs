@@ -69,7 +69,7 @@ pub struct JellyfinLogin {
 }
 
 /// A name Marquee takes (3–32 letters, digits, `_`, `-`, `.`) made from `name`, and not taken yet.
-fn free_name(st: &AppState, name: &str) -> Result<String> {
+pub(super) fn free_name(st: &AppState, name: &str) -> Result<String> {
     let mut base: String = name.chars().filter(|c| c.is_alphanumeric() || "_-.".contains(*c)).take(28).collect();
     while base.chars().count() < 3 {
         base.push('_');

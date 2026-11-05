@@ -10,6 +10,7 @@
 //! | [`recovery`] | password reset by mail |
 //! | [`expiry`] | accounts that end on a date, with reminders |
 //! | [`external_login`] | signing in with a Plex or Jellyfin account |
+//! | [`jfa_go`] | moving in from jfa-go once: its users and open invites, with a dry run first |
 //!
 //! ```text
 //! GET  /api/media-servers                      → {jellyfin, plex, mail}: whether each is set up and answers (admins)
@@ -27,6 +28,7 @@ pub mod expiry;
 pub mod external_login;
 pub mod invites;
 pub mod jellyfin;
+pub mod jfa_go;
 pub mod plex;
 pub mod recovery;
 
@@ -83,6 +85,7 @@ pub fn router() -> Router<AppState> {
         .merge(recovery::router())
         .merge(expiry::router())
         .merge(external_login::router())
+        .merge(jfa_go::router())
 }
 
 /// Starts the background work: what each server has, read again every 30 minutes, and the hourly account
