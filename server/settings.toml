@@ -128,6 +128,31 @@ help = "Where TMDB's API is; empty means TMDB itself. For tests and mirrors."
 
 # ---- TRaSH track: keys start with trash_ ----
 
+[sections.trash]
+title = "TRaSH Guides"
+
+[groups.trash]
+section = "trash"
+title = "TRaSH Guides"
+desc = "Quality profiles, custom formats, sizes and naming come from the TRaSH Guides. Pick what you want under TRaSH (in the menu); these settings say when Marquee looks for updates."
+
+[keys.trash_auto]
+env = "MARQUEE_TRASH_AUTO"
+default = true
+group = "trash"
+label = "Set up and update automatically"
+help = "On the first start Marquee adds TRaSH's profiles; then it looks for updates on the schedule below. Your own edits are never overwritten without asking."
+type = "bool"
+
+[keys.trash_sync_hours]
+env = "MARQUEE_TRASH_SYNC_HOURS"
+default = 24
+group = "trash"
+label = "Look for updates every"
+type = "number"
+unit = "hours"
+min = 1
+
 # ---- end of the TRaSH track ----
 
 # ---- Requests track: keys start with request_ or seerr_ ----

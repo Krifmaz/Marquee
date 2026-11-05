@@ -48,6 +48,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 regex = "1"
 # ---- the tracks' own dependencies (docs/TRACKS.md): each track adds lines only under its own comment ----
 # TRaSH track
+fancy-regex = "0.14"
 # requests track
 # media servers track
 

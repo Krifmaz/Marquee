@@ -1,8 +1,12 @@
 //! Choosing a release: what a quality profile allows and prefers, the sizes the quality list allows, and whether a
 //! release is the movie or the episodes wanted. Every release that is turned down says why, in words.
+//!
+//! Custom formats (TRaSH's, from [`crate::trash`]) score releases: a release below the profile's minimum score is
+//! turned down, and among releases of the same quality the higher score wins, as in Radarr and Sonarr.
 
 use crate::lantern::Release;
 use crate::release::{self, Parsed};
+use crate::trash::formats::{Facts, Format};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -15,12 +19,29 @@ pub struct Profile {
     pub cutoff: usize,
     /// whether a file is replaced by a better one
     pub upgrades: bool,
+    /// (custom format name, score) from the profile's `formatItems`, zero scores left out
+    pub scores: Vec<(String, i64)>,
+    /// the lowest custom format score a release may have
+    pub min_score: i64,
+    /// the profile's scored custom formats, ready to match (see [`Profile::with_formats`])
+    pub formats: Vec<Format>,
 }
 
 impl Profile {
     /// Reads a Sonarr/Radarr-shaped profile body (`items` from the lowest quality to the highest, groups inside).
     pub fn read(v: &Value) -> Profile {
-        let mut p = Profile { upgrades: v["upgradeAllowed"].as_bool().unwrap_or(false), ..Profile::default() };
+        let mut p = Profile {
+            upgrades: v["upgradeAllowed"].as_bool().unwrap_or(false),
+            min_score: v["minFormatScore"].as_i64().unwrap_or(0),
+            scores: v["formatItems"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|f| Some((f["name"].as_str()?.to_string(), f["score"].as_i64().unwrap_or(0))))
+                .filter(|(_, s)| *s != 0)
+                .collect(),
+            ..Profile::default()
+        };
         let cutoff = v["cutoff"].as_i64().unwrap_or(-1);
         for (rank, item) in v["items"].as_array().cloned().unwrap_or_default().iter().enumerate() {
             let allowed = item["allowed"].as_bool().unwrap_or(false);
@@ -45,6 +66,23 @@ impl Profile {
             }
         }
         p
+    }
+
+    /// The profile with the custom formats it scores, out of `all` (the kind's custom formats).
+    pub fn with_formats(mut self, all: &[Format]) -> Profile {
+        self.formats = all.iter().filter(|f| self.scores.iter().any(|(n, _)| *n == f.name)).cloned().collect();
+        self
+    }
+
+    /// The custom formats a release matches and its total score.
+    pub fn score(&self, facts: &Facts) -> (i64, Vec<String>) {
+        let mut total = 0;
+        let mut names = Vec::new();
+        for f in self.formats.iter().filter(|f| f.matches(facts)) {
+            total += self.scores.iter().find(|(n, _)| *n == f.name).map(|(_, s)| *s).unwrap_or(0);
+            names.push(f.name.clone());
+        }
+        (total, names)
     }
 
     /// A quality's rank and whether the profile allows it; `None` when the profile doesn't list it.
@@ -105,6 +143,10 @@ pub struct Candidate {
     pub quality: String,
     /// its rank in the profile (higher is better)
     pub rank: usize,
+    /// its custom format score in the profile
+    pub score: i64,
+    /// the custom formats it matched
+    pub formats: Vec<String>,
     /// the episodes (Marquee's ids) it holds, for TV
     pub episode_ids: Vec<i64>,
     /// why it can't be used; empty when it can
@@ -130,8 +172,12 @@ pub struct Wanted<'a> {
     pub current: Option<usize>,
 }
 
-/// The checks every release gets: quality allowed, better than the file there is, a sensible size, seeders.
-fn common(w: &Wanted, r: &Release, p: &Parsed, minutes: i64) -> (String, usize, Vec<String>) {
+/// What [`common`] found: the quality name, its rank, the custom format score and formats, and why it can't be used.
+type Checked = (String, usize, i64, Vec<String>, Vec<String>);
+
+/// The checks every release gets: quality allowed, better than the file there is, custom format score, a
+/// sensible size, seeders.
+fn common(w: &Wanted, r: &Release, p: &Parsed, minutes: i64) -> Checked {
     let quality = release::name_for(w.kind, p.quality_name);
     let mut why = Vec::new();
     let rank = match w.profile.rank(&quality) {
@@ -154,6 +200,10 @@ fn common(w: &Wanted, r: &Release, p: &Parsed, minutes: i64) -> (String, usize, 
             why.push("It isn't better than the file there is".into());
         }
     }
+    let (score, formats) = w.profile.score(&Facts::new(w.kind, &r.title, p, r.size));
+    if score < w.profile.min_score {
+        why.push(format!("Its custom format score is {score}, below this profile's minimum of {}", w.profile.min_score));
+    }
     if let Some(s) = w.sizes.check(&quality, r.size, minutes) {
         why.push(s);
     }
@@ -163,15 +213,17 @@ fn common(w: &Wanted, r: &Release, p: &Parsed, minutes: i64) -> (String, usize, 
     if r.download_url.as_deref().unwrap_or("").is_empty() && r.magnet_url.as_deref().unwrap_or("").is_empty() {
         why.push("Lantern gave no link for it".into());
     }
-    (quality, rank, why)
+    (quality, rank, score, formats, why)
 }
 
-/// The best first: highest rank, then proper/repack, then most seeders, then newest.
+/// The best first: highest rank, then highest custom format score, then proper/repack, then most seeders, then
+/// newest.
 pub fn sort(c: &mut [Candidate]) {
     c.sort_by(|a, b| {
         b.ok()
             .cmp(&a.ok())
             .then(b.rank.cmp(&a.rank))
+            .then(b.score.cmp(&a.score))
             .then(b.parsed.revision.cmp(&a.parsed.revision))
             .then(b.release.seeders.unwrap_or(0).cmp(&a.release.seeders.unwrap_or(0)))
             .then(a.release.age.cmp(&b.release.age))
@@ -185,7 +237,7 @@ pub fn for_movie(w: &Wanted, releases: Vec<Release>, titles: &[&str], year: i64,
         .into_iter()
         .map(|r| {
             let p = release::parse(&r.title);
-            let (quality, rank, mut why) = common(w, &r, &p, minutes);
+            let (quality, rank, score, formats, mut why) = common(w, &r, &p, minutes);
             if !names.contains(&release::clean(&p.title)) {
                 why.insert(0, format!("It's for “{}”, not this movie", p.title));
             } else if p.year > 0 && year > 0 && (p.year - year).abs() > 1 {
@@ -194,7 +246,7 @@ pub fn for_movie(w: &Wanted, releases: Vec<Release>, titles: &[&str], year: i64,
             if p.season.is_some() {
                 why.insert(0, "It's a TV episode".into());
             }
-            Candidate { release: r, parsed: p, quality, rank, episode_ids: vec![], rejections: why }
+            Candidate { release: r, parsed: p, quality, rank, score, formats, episode_ids: vec![], rejections: why }
         })
         .collect();
     sort(&mut out);
@@ -268,12 +320,12 @@ pub fn for_episodes(
             let minutes: i64 = held.iter().map(|e| e.runtime).sum();
             let current = held.iter().map(|e| e.current).min().flatten();
             let w2 = Wanted { current, ..*w };
-            let (quality, rank, more) = common(&w2, &r, &p, minutes);
+            let (quality, rank, score, formats, more) = common(&w2, &r, &p, minutes);
             why.extend(more);
             if !names.contains(&release::clean(&p.title)) {
                 why.insert(0, format!("It's for “{}”, not this series", p.title));
             }
-            Candidate { release: r, parsed: p, quality, rank, episode_ids: ids, rejections: why }
+            Candidate { release: r, parsed: p, quality, rank, score, formats, episode_ids: ids, rejections: why }
         })
         .collect();
     sort(&mut out);
@@ -347,6 +399,36 @@ mod tests {
         let w = Wanted { current: Some(3), ..w };
         let again = for_movie(&w, vec![rel("The.Matrix.1999.1080p.BluRay.x264-SPARKS", 10.0, 50)], &["The Matrix"], 1999, 136);
         assert!(!again[0].ok(), "the cutoff is met");
+    }
+
+    #[test]
+    fn custom_formats_score_and_order_releases() {
+        let mut body = json!({
+            "upgradeAllowed": true, "cutoff": 7, "minFormatScore": 0,
+            "items": [{"quality": {"id": 7, "name": "Bluray-1080p"}, "items": [], "allowed": true}],
+            "formatItems": [{"format": 1, "name": "HD Bluray Tier 01", "score": 1800}, {"format": 2, "name": "LQ", "score": -10000}]
+        });
+        let tier = Format::read(&json!({"name": "HD Bluray Tier 01", "specifications": [
+            {"name": "g", "implementation": "ReleaseGroupSpecification", "required": false, "fields": [{"name": "value", "value": "^(DON)$"}]}]}));
+        let lq = Format::read(&json!({"name": "LQ", "specifications": [
+            {"name": "g", "implementation": "ReleaseGroupSpecification", "required": false, "fields": [{"name": "value", "value": "^(YIFY)$"}]}]}));
+        let p = Profile::read(&body).with_formats(&[tier.clone(), lq.clone()]);
+        let sizes = Sizes::default();
+        let w = Wanted { kind: "movie", profile: &p, sizes: &sizes, current: None };
+        let found = for_movie(
+            &w,
+            vec![rel("The.Matrix.1999.1080p.BluRay.x264-OTHER", 10.0, 90), rel("The.Matrix.1999.1080p.BluRay.x264-DON", 10.0, 5)],
+            &["The Matrix"],
+            1999,
+            136,
+        );
+        assert_eq!(found[0].release.title, "The.Matrix.1999.1080p.BluRay.x264-DON", "the higher score wins over seeders");
+        assert_eq!((found[0].score, found[0].formats.clone()), (1800, vec!["HD Bluray Tier 01".to_string()]));
+        body["minFormatScore"] = json!(0);
+        let p = Profile::read(&body).with_formats(&[tier, lq]);
+        let w = Wanted { kind: "movie", profile: &p, sizes: &sizes, current: None };
+        let found = for_movie(&w, vec![rel("The.Matrix.1999.1080p.BluRay.x264-YIFY", 10.0, 90)], &["The Matrix"], 1999, 136);
+        assert_eq!(found[0].rejections, vec!["Its custom format score is -10000, below this profile's minimum of 0"]);
     }
 
     #[test]
