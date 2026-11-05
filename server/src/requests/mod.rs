@@ -55,6 +55,10 @@ pub mod media_status {
     pub const PARTIALLY_AVAILABLE: i64 = 4;
     /// all of it is there
     pub const AVAILABLE: i64 = 5;
+    /// kept out of requests (Seerr's blocklist)
+    pub const BLOCKLISTED: i64 = 6;
+    /// it was there and was removed
+    pub const DELETED: i64 = 7;
 }
 
 /// The language choices of an anime request: the audio wanted.
@@ -250,11 +254,6 @@ impl Request {
             updated_at: r.s("updated_at"),
         }
     }
-
-    /// Whether it still stands (not declined and not failed): it blocks asking again and counts toward limits.
-    pub fn stands(&self) -> bool {
-        !matches!(self.status, status::DECLINED | status::FAILED)
-    }
 }
 
 /// Every request, newest first.
@@ -442,14 +441,14 @@ pub fn downloading(db: &SqliteDb, kind: &str, id: i64) -> bool {
     })
 }
 
-/// What an account may ask for in a period: (limit, days); a limit of 0 means no limit.
+/// What an account may ask for in a period, as Seerr's `User.getQuota` works it out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Quota {
     /// how many in the period, 0 for no limit
     pub limit: i64,
-    /// the period in days
+    /// the period in days, 0 for all time
     pub days: i64,
-    /// how many were asked for in the last `days` days
+    /// how many were asked for in the period (0 without a limit, like Seerr)
     pub used: i64,
 }
 
@@ -459,29 +458,34 @@ impl Quota {
         (self.limit > 0).then(|| (self.limit - self.used).max(0))
     }
 
-    /// Whether `more` would go over the limit.
-    pub fn would_exceed(&self, more: i64) -> bool {
-        self.limit > 0 && self.used + more > self.limit
+    /// Whether nothing is left (Seerr's `restricted`).
+    pub fn restricted(&self) -> bool {
+        self.limit > 0 && self.limit - self.used <= 0
     }
 }
 
-/// The account `user`'s movie and TV quotas, counted from its requests that still stand (TV counts seasons).
+/// The account `user`'s movie and TV quotas, ported from Seerr's `User.getQuota`: accounts that may manage
+/// accounts (admins) have no limit; every request not declined and not marked "skip the limit" made in the last
+/// `days` days counts (all time when `days` is 0), TV by its seasons.
 pub fn quotas(db: &SqliteDb, user: &Row) -> Result<(Quota, Quota)> {
+    let bypass = seerr::has_any(user, &[seerr::perm::MANAGE_USERS]);
     let mine: Vec<Request> =
         db.query("SELECT * FROM requests WHERE requested_by=?", p![user.i("id")])?.iter().map(Request::from_row).collect();
-    let since = |days: i64| (Utc::now() - Duration::days(days.max(1))).format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
-    let count = |kind: &str, days: i64| -> i64 {
-        let from = since(days);
+    let count = |kind: &str, limit: i64, days: i64| -> i64 {
+        if limit <= 0 {
+            return 0;
+        }
+        let from = (days > 0).then(|| (Utc::now() - Duration::days(days)).format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
         mine.iter()
-            .filter(|r| r.kind == kind && r.stands() && !r.ignore_quota && !r.is_auto && r.created_at >= from)
-            .map(|r| if kind == "tv" { r.seasons.len().max(1) as i64 } else { 1 })
+            .filter(|r| r.kind == kind && r.status != status::DECLINED && !r.ignore_quota)
+            .filter(|r| from.as_ref().is_none_or(|f| r.created_at > *f))
+            .map(|r| if kind == "tv" { r.seasons.len() as i64 } else { 1 })
             .sum()
     };
-    let (md, td) = (user.i("movie_quota_days").max(1), user.i("tv_quota_days").max(1));
-    Ok((
-        Quota { limit: user.i("movie_quota_limit"), days: md, used: count("movie", md) },
-        Quota { limit: user.i("tv_quota_limit"), days: td, used: count("tv", td) },
-    ))
+    let limit = |k: &str| if bypass { 0 } else { user.i(k).max(0) };
+    let (ml, tl) = (limit("movie_quota_limit"), limit("tv_quota_limit"));
+    let (md, td) = (user.i("movie_quota_days").max(0), user.i("tv_quota_days").max(0));
+    Ok((Quota { limit: ml, days: md, used: count("movie", ml, md) }, Quota { limit: tl, days: td, used: count("tv", tl, td) }))
 }
 
 /// An account's row (the `users` table), 404 when there is none.
@@ -648,52 +652,92 @@ impl Asker {
     pub fn admin(&self) -> bool {
         self.role.is_admin()
     }
+
+    /// Seerr's `hasPermission(bits, {type: 'or'})`: any one of `bits` (admins have them all).
+    pub fn has(&self, bits: &[i64]) -> bool {
+        seerr::has_any(&self.row, bits)
+    }
+
+    /// Seerr's `hasPermission(bits)`: every one of `bits` (admins have them all).
+    pub fn has_all(&self, bits: &[i64]) -> bool {
+        seerr::has_all(&self.row, bits)
+    }
 }
 
-/// Makes a request: checks the role, what is already asked for or there, and the account's limits; approves it
-/// at once for admins and auto-approved accounts. The new request.
+/// Makes a request, ported from Seerr's `MediaRequest.request`: the account it is for (another one only for
+/// accounts that may manage requests and accounts), its permission to ask, its limits, what is already asked for
+/// or there, then the new request, approved at once when `by` may auto-approve or manage requests. Errors carry
+/// Seerr's status and words: 403 permission or limit, 409 already asked for, 202 no seasons left to ask for.
 pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
+    use seerr::perm::*;
     if a.kind != "movie" && a.kind != "tv" {
         return Err(err(400, "Say what you're asking for: a movie or TV"));
     }
     if a.tmdb_id <= 0 {
         return Err(err(400, "Say which title you're asking for"));
     }
-    if !by.role.can_request() {
-        return Err(err(403, "Your account can look around but can't ask for anything. Ask an admin to change that."));
-    }
-    let on_behalf = a.user_id.filter(|u| *u != by.id());
-    if (on_behalf.is_some() || a.ignore_quota || a.profile_id.is_some() || a.root_folder.is_some() || !a.tags.is_empty()) && !by.admin() {
-        return Err(err(403, "Only an admin can choose the account, folder, profile, tags or skip the limit"));
-    }
-    let who = match on_behalf {
-        Some(u) => {
+    let who = match a.user_id {
+        Some(_) if !by.has_all(&[MANAGE_USERS, MANAGE_REQUESTS]) => {
+            return Err(err(403, "You do not have permission to modify the request user."));
+        }
+        Some(u) if u != by.id() => {
             let row = user(&st.db, u)?;
             Asker { role: Role::parse(&row.s("role")), row }
         }
-        None => by.clone(),
+        _ => by.clone(),
     };
+    let movie = a.kind == "movie";
+    let may_ask = match (movie, a.is4k) {
+        (true, false) => [REQUEST, REQUEST_MOVIE],
+        (true, true) => [REQUEST_4K, REQUEST_4K_MOVIE],
+        (false, false) => [REQUEST, REQUEST_TV],
+        (false, true) => [REQUEST_4K, REQUEST_4K_TV],
+    };
+    if !who.has(&may_ask) {
+        let what = if movie { "movie" } else { "series" };
+        return Err(err(403, format!("You do not have permission to make {}{what} requests.", if a.is4k { "4K " } else { "" })));
+    }
+    let (mq, tq) = quotas(&st.db, &who.row)?;
+    let can_bypass = by.has(&[MANAGE_REQUESTS]);
+    let ignore_quota = a.ignore_quota && can_bypass && (if movie { mq.limit } else { tq.limit }) > 0;
+    if !ignore_quota {
+        if a.ignore_quota && !can_bypass {
+            return Err(err(403, "You do not have permission to bypass user quota limits."));
+        } else if movie && mq.restricted() {
+            return Err(err(403, "Movie Quota exceeded."));
+        } else if !movie && tq.restricted() {
+            return Err(err(403, "Series Quota exceeded."));
+        }
+    }
     let f = facts(st, &a.kind, a.tmdb_id).await?;
     let m = upsert_media(&st.db, &a.kind, a.tmdb_id, &f)?;
-    let avail = availability(&st.db, &m)?;
-    let standing: Vec<Request> = for_media(&st.db, m.id)?.into_iter().filter(Request::stands).collect();
+    if let Some(t) = a.tvdb_id.filter(|t| *t > 0 && m.tvdb_id.is_none()) {
+        st.db.execute("UPDATE request_media SET tvdb_id=? WHERE id=?", p![t, m.id])?;
+    }
+    // oldest first, like Seerr's query without an order
+    let mut existing: Vec<Request> = for_media(&st.db, m.id)?.into_iter().filter(|r| r.is4k == a.is4k).collect();
+    existing.reverse();
+    if movie && existing.first().is_some_and(|r| !matches!(r.status, status::DECLINED | status::COMPLETED)) {
+        return Err(err(409, "Request for this media already exists."));
+    }
+    if existing.iter().any(|r| r.requested_by == who.id() && r.is_auto) {
+        return Err(err(409, "Auto-request for this media and user already exists."));
+    }
     let mut seasons = Vec::new();
-    if a.kind == "movie" {
-        if avail.status == media_status::AVAILABLE {
-            return Err(err(409, format!("{} is already there", f.title)));
-        }
-        if !standing.is_empty() {
-            return Err(err(409, format!("{} has already been asked for", f.title)));
-        }
-    } else {
+    if !movie {
+        // "all" (or nothing) is every regular season; specials only when asked for by number
         let wanted: Vec<i64> = if a.seasons.is_empty() { f.seasons.clone() } else { a.seasons.clone() };
-        let taken: Vec<i64> = standing.iter().flat_map(|r| r.seasons.clone()).collect();
-        let there = |n: i64| avail.seasons.iter().any(|(s, st)| *s == n && *st == media_status::AVAILABLE);
-        seasons = wanted.into_iter().filter(|n| *n >= 0 && !taken.contains(n) && !there(*n)).collect();
-        seasons.sort_unstable();
+        let avail = availability(&st.db, &m)?;
+        let mut taken: Vec<i64> =
+            existing.iter().filter(|r| !matches!(r.status, status::DECLINED | status::COMPLETED)).flat_map(|r| r.seasons.clone()).collect();
+        taken.extend(avail.seasons.iter().filter(|(_, s)| *s != media_status::UNKNOWN).map(|(n, _)| *n));
+        seasons = wanted.into_iter().filter(|n| *n > 0 && !taken.contains(n)).collect();
         seasons.dedup();
         if seasons.is_empty() {
-            return Err(err(409, format!("Every season of {} you picked is already there or asked for", f.title)));
+            return Err(err(202, "No seasons available to request"));
+        }
+        if !ignore_quota && tq.limit > 0 && seasons.len() as i64 > tq.remaining().unwrap_or(0) {
+            return Err(err(403, "Series Quota exceeded."));
         }
     }
     let (audio, subs) = if f.anime {
@@ -704,22 +748,13 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
     } else {
         (String::new(), String::new())
     };
-    if !who.admin() && !a.ignore_quota {
-        let (mq, tq) = quotas(&st.db, &who.row)?;
-        let (q, more, what) = if a.kind == "movie" { (mq, 1, "movies") } else { (tq, seasons.len() as i64, "seasons") };
-        if q.would_exceed(more) {
-            return Err(err(
-                403,
-                format!(
-                    "That's over your limit of {} {what} every {} days ({} left). Try again later or ask an admin.",
-                    q.limit,
-                    q.days,
-                    q.remaining().unwrap_or(0)
-                ),
-            ));
-        }
-    }
-    let auto = who.admin() || (a.kind == "movie" && who.row.b("auto_approve_movies")) || (a.kind == "tv" && who.row.b("auto_approve_tv"));
+    let auto_bits = match (movie, a.is4k) {
+        (true, false) => [AUTO_APPROVE, AUTO_APPROVE_MOVIE, MANAGE_REQUESTS],
+        (true, true) => [AUTO_APPROVE_4K, AUTO_APPROVE_4K_MOVIE, MANAGE_REQUESTS],
+        (false, false) => [AUTO_APPROVE, AUTO_APPROVE_TV, MANAGE_REQUESTS],
+        (false, true) => [AUTO_APPROVE_4K, AUTO_APPROVE_4K_TV, MANAGE_REQUESTS],
+    };
+    let auto = by.has(&auto_bits);
     let now = stamp();
     let id = st.db.execute(
         "INSERT INTO requests (media_id, kind, status, is4k, seasons, requested_by, profile_id, root_folder, language_profile_id,
@@ -734,9 +769,9 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
             a.profile_id,
             a.root_folder.filter(|r| !r.trim().is_empty()),
             // Sonarr v4 has one language profile; Seerr clients expect its id on TV requests
-            if a.kind == "tv" { a.language_profile_id.or(Some(1)) } else { a.language_profile_id },
+            if movie { a.language_profile_id } else { a.language_profile_id.or(Some(1)) },
             serde_json::to_string(&a.tags).unwrap_or_else(|_| "[]".into()),
-            a.ignore_quota as i64,
+            ignore_quota as i64,
             audio,
             subs,
             now,
@@ -924,10 +959,11 @@ mod tests {
     fn quotas_count_what_is_left() {
         let q = Quota { limit: 3, days: 7, used: 2 };
         assert_eq!(q.remaining(), Some(1));
-        assert!(!q.would_exceed(1) && q.would_exceed(2));
+        assert!(!q.restricted());
+        assert!(Quota { limit: 3, days: 7, used: 3 }.restricted(), "nothing left is restricted, like Seerr");
         let none = Quota { limit: 0, days: 7, used: 99 };
         assert_eq!(none.remaining(), None);
-        assert!(!none.would_exceed(100));
+        assert!(!none.restricted());
     }
 
     #[test]

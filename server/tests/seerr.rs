@@ -270,7 +270,7 @@ async fn a_request_goes_from_asked_to_approved_to_available() {
     assert_eq!(tv["seasons"][0]["seasonNumber"], 1);
     let (s, e) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [2] }))).await;
     assert_eq!(s, StatusCode::FORBIDDEN, "one season every 14 days: {e}");
-    assert!(e["message"].as_str().unwrap().contains("limit of 1 seasons every 14 days"));
+    assert_eq!(e["message"], "Series Quota exceeded.", "Seerr's words");
     let (_, quota) = call(&app, "GET", &format!("/user/{sam}/quota"), Some(sam), None).await;
     assert_shape(&quota, &real("user_2_quota"), "quota");
     assert_eq!(quota["movie"], json!({ "days": 7, "limit": 2, "used": 1, "remaining": 1, "restricted": false }));
@@ -312,7 +312,7 @@ async fn a_request_goes_from_asked_to_approved_to_available() {
     assert_shape(&count, &real("request_count"), "request/count");
     assert_eq!(
         count,
-        json!({ "total": 2, "movie": 1, "tv": 1, "pending": 0, "approved": 2, "declined": 0, "processing": 2, "available": 0 })
+        json!({ "total": 2, "movie": 1, "tv": 1, "pending": 0, "approved": 2, "declined": 0, "processing": 2, "available": 0, "completed": 0 })
     );
     let (_, media) = call(&app, "GET", "/media", None, None).await;
     assert_shape(&media, &real("media"), "media");
@@ -336,9 +336,14 @@ async fn a_request_goes_from_asked_to_approved_to_available() {
     assert_eq!((done["status"].as_i64(), done["media"]["status"].as_i64()), (Some(5), Some(5)), "completed, available");
     assert_eq!(done["statusWords"], "Available");
     let (_, count) = call(&app, "GET", "/request/count", None, None).await;
-    assert_eq!(count["available"], 1);
-    let (s, _) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
-    assert_eq!(s, StatusCode::CONFLICT, "it is already there");
+    assert_eq!((count["available"].as_i64(), count["completed"].as_i64()), (Some(0), Some(1)), "Seerr counts completed apart");
+    let (_, available) = call(&app, "GET", "/request?filter=available", None, None).await;
+    assert_eq!(available["pageInfo"]["results"], 1);
+    assert_eq!(available["serviceErrors"], json!({ "radarr": [], "sonarr": [] }));
+    let (s, e) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    assert_eq!(s, StatusCode::CREATED, "like Seerr, a completed request doesn't block asking again: {e}");
+    let (s, e) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("Series Quota exceeded.")), "the limit comes first");
 }
 
 #[tokio::test]
@@ -362,7 +367,11 @@ async fn admins_decline_change_and_remove_and_people_remove_their_own() {
         StatusCode::NO_CONTENT,
         "your own waiting request"
     );
-    assert_eq!(call(&app, "DELETE", &format!("/request/{id}"), Some(sam), None).await.0, StatusCode::FORBIDDEN, "not once declined");
+    assert_eq!(
+        call(&app, "DELETE", &format!("/request/{id}"), Some(sam), None).await.0,
+        StatusCode::UNAUTHORIZED,
+        "not once declined (Seerr answers 401)"
+    );
     let (_, list) = call(&app, "GET", "/request?filter=declined", Some(sam), None).await;
     assert_eq!(list["pageInfo"]["results"], 1);
 
@@ -389,6 +398,76 @@ async fn admins_decline_change_and_remove_and_people_remove_their_own() {
     assert_eq!(call(&app, "DELETE", &format!("/media/{media_id}"), None, None).await.0, StatusCode::NO_CONTENT);
     let (_, list) = call(&app, "GET", "/request?mediaType=movie", None, None).await;
     assert_eq!(list["pageInfo"]["results"], 0, "removing the title removes its requests");
+}
+
+#[tokio::test]
+async fn request_rules_follow_seerr_routes_request_ts() {
+    let (app, _) = server("rules").await;
+    let sam = id_of(&app, "sam").await;
+    let vic = id_of(&app, "vic").await;
+    let ask = |b: Value, u: Option<i64>| {
+        let app = app.clone();
+        async move { call(&app, "POST", "/request", u, Some(b)).await }
+    };
+
+    // permission and limit errors, in Seerr's words
+    let (s, e) = ask(json!({ "mediaType": "movie", "mediaId": 603, "is4k": true }), Some(sam)).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to make 4K movie requests.")));
+    let (s, e) = ask(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }), Some(vic)).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to make series requests.")));
+    let (s, e) = ask(json!({ "mediaType": "movie", "mediaId": 603, "userId": vic }), Some(sam)).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to modify the request user.")));
+    let (s, e) = ask(json!({ "mediaType": "movie", "mediaId": 603, "ignoreQuota": true }), Some(sam)).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to bypass user quota limits.")));
+    let (s, e) = ask(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1, 2] }), Some(sam)).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("Series Quota exceeded.")), "two seasons, one left");
+
+    // sam's own TV request: sam may change its seasons while it waits
+    let (s, tv) = ask(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }), Some(sam)).await;
+    assert_eq!(s, StatusCode::CREATED, "{tv}");
+    let tid = tv["id"].as_i64().unwrap();
+    let (s, e) = ask(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::ACCEPTED, Some("No seasons available to request")));
+    let (s, e) = call(&app, "PUT", &format!("/request/{tid}"), Some(sam), Some(json!({ "mediaType": "tv", "seasons": [] }))).await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{e}");
+    let (s, e) = call(&app, "PUT", &format!("/request/{tid}"), Some(sam), Some(json!({ "mediaType": "tv", "seasons": [1, 2] }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("Series Quota exceeded.")), "season 1 is paid for, 2 isn't");
+    let (s, swapped) = call(&app, "PUT", &format!("/request/{tid}"), Some(sam), Some(json!({ "mediaType": "tv", "seasons": [2] }))).await;
+    assert_eq!(s, StatusCode::OK, "{swapped}");
+    assert_eq!(swapped["seasons"].as_array().unwrap().iter().map(|x| x["seasonNumber"].as_i64().unwrap()).collect::<Vec<_>>(), vec![2]);
+    let (s, e) =
+        call(&app, "PUT", &format!("/request/{tid}"), Some(sam), Some(json!({ "mediaType": "tv", "seasons": [2], "userId": vic }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to modify the request user.")));
+
+    // who sees what
+    let (s, _) = call(&app, "GET", &format!("/request?requestedBy={}", 1), Some(sam), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "somebody else's list");
+    let (_, own) = ask(json!({ "mediaType": "movie", "mediaId": 603 }), None).await;
+    let oid = own["id"].as_i64().unwrap();
+    let (s, e) = call(&app, "GET", &format!("/request/{oid}"), Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to view this request.")));
+    let (_, mine) = call(&app, "GET", "/request", Some(sam), None).await;
+    assert_eq!(mine["pageInfo"]["results"], 1, "only sam's own");
+    let (_, count) = call(&app, "GET", "/request/count", Some(sam), None).await;
+    assert_eq!(count["total"], 2, "counts are everybody's, like Seerr");
+
+    // approve, decline and retry only from the right status
+    let (s, e) = call(&app, "POST", &format!("/request/{tid}/approve"), Some(sam), None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to access this endpoint")));
+    let (s, e) = call(&app, "POST", &format!("/request/{tid}/maybe"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::BAD_REQUEST, Some("Status must be approve or decline.")));
+    let (s, e) = call(&app, "POST", &format!("/request/{tid}/retry"), None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::CONFLICT, Some("Only failed requests can be retried.")));
+    let (s, e) = call(&app, "POST", &format!("/request/{oid}/decline"), None, None).await;
+    assert_eq!(
+        (s, e["message"].as_str()),
+        (StatusCode::CONFLICT, Some("Only pending requests can be approved or declined.")),
+        "the owner's was approved at once"
+    );
+    let (s, e) = call(&app, "PUT", &format!("/request/{oid}"), None, Some(json!({ "mediaType": "movie" }))).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::CONFLICT, Some("Only pending requests can be modified.")));
+    let (s, e) = call(&app, "DELETE", "/request/999", None, None).await;
+    assert_eq!((s, e["message"].as_str()), (StatusCode::NOT_FOUND, Some("Request not found.")));
 }
 
 #[tokio::test]
@@ -516,10 +595,10 @@ async fn requests_and_limits_move_in_from_seerr_after_a_dry_run() {
         .iter()
         .map(|r| (r["type"].as_str().unwrap().to_string(), r["status"].as_i64().unwrap(), r["requestedBy"]["id"].as_i64().unwrap()))
         .collect();
-    assert_eq!(got, vec![("movie".into(), 5, sam), ("tv".into(), 1, sam)], "the movie is available, the show still waits");
-    let movie = &list["results"][0];
+    assert_eq!(got, vec![("tv".into(), 1, sam), ("movie".into(), 5, sam)], "by id, like Seerr: the show waits, the movie is available");
+    let movie = &list["results"][1];
     assert_eq!((movie["createdAt"].as_str(), movie["modifiedBy"]["username"].as_str()), (Some("2026-11-03T10:00:00.000Z"), Some("owner")));
-    assert_eq!(list["results"][1]["seasonCount"], 2);
+    assert_eq!(list["results"][0]["seasonCount"], 2);
     let (_, main) = call(&app, "GET", &format!("/user/{sam}/settings/main"), None, None).await;
     assert_eq!(
         (main["movieQuotaLimit"].as_i64(), main["movieQuotaDays"].as_i64(), main["tvQuotaLimit"].as_i64(), main["tvQuotaDays"].as_i64()),
