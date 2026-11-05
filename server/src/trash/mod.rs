@@ -247,13 +247,15 @@ pub fn spawn(st: AppState) {
     if !st.settings.bool("trash_auto") {
         return;
     }
-    tokio::spawn(async move {
-        if choices(&st.db).is_none() {
-            match setup(&st.db, Choices::default()) {
-                Ok((n, _)) => tracing::info!("Set up the TRaSH Guides defaults ({n} items)"),
-                Err(e) => tracing::warn!("The TRaSH Guides defaults can't be set up: {}", e.detail),
-            }
+    // the first-start defaults are set up before the server answers anyone, so a profile picked by the first
+    // request can't be replaced under it
+    if choices(&st.db).is_none() {
+        match setup(&st.db, Choices::default()) {
+            Ok((n, _)) => tracing::info!("Set up the TRaSH Guides defaults ({n} items)"),
+            Err(e) => tracing::warn!("The TRaSH Guides defaults can't be set up: {}", e.detail),
         }
+    }
+    tokio::spawn(async move {
         // the first look soon after the start, then on the schedule
         tokio::time::sleep(Duration::from_secs(120)).await;
         loop {

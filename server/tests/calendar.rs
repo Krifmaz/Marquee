@@ -10,7 +10,8 @@ use tower::ServiceExt;
 /// The API key the tests use.
 const KEY: &str = "calendar-test-key";
 
-/// A fresh server on a data folder of its own, with an owner `admin` and no TMDB key.
+/// A fresh server on a data folder of its own, with an owner `admin`, no TMDB key and the built-in profiles (no TRaSH
+/// first-start set-up).
 async fn server(name: &str) -> Router {
     let dir = std::env::temp_dir().join(format!("marquee-calendar-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -18,7 +19,13 @@ async fn server(name: &str) -> Router {
     std::fs::create_dir_all(&web).unwrap();
     std::fs::create_dir_all(dir.join("media/movies")).unwrap();
     std::fs::write(web.join("index.html"), "<!doctype html>").unwrap();
-    let st = server::AppState::open(&dir.join("data"), web, |n| (n == "APP_API_KEY").then(|| KEY.to_string())).await.unwrap();
+    let st = server::AppState::open(&dir.join("data"), web, |n| match n {
+        "APP_API_KEY" => Some(KEY.to_string()),
+        "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        _ => None,
+    })
+    .await
+    .unwrap();
     server::auth::ensure_owner(&st, Some("admin".into()), Some("correct horse battery".into())).unwrap();
     let app = server::app(st);
     let root = dir.join("media/movies").to_string_lossy().to_string();

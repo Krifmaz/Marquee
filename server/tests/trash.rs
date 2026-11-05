@@ -296,3 +296,27 @@ async fn a_broken_github_answer_is_reported_and_changes_nothing() {
     assert_eq!(v["lastError"], "GitHub can't be reached: test");
     assert_eq!(v["commit"], Snapshot::bundled().commit);
 }
+
+#[tokio::test]
+async fn the_first_start_defaults_are_ready_before_the_first_request() {
+    let dir = std::env::temp_dir().join(format!("marquee-trash-auto-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let web = dir.join("static");
+    std::fs::create_dir_all(&web).unwrap();
+    std::fs::write(web.join("index.html"), "<!doctype html>").unwrap();
+    let st = AppState::open(&dir.join("data"), web, |n| match n {
+        "APP_API_KEY" => Some(KEY.to_string()),
+        _ => None,
+    })
+    .await
+    .unwrap();
+    server::auth::ensure_owner(&st, None, Some("correct horse battery".into())).unwrap();
+    let app = server::app(st.clone());
+    // no waiting: the default profile is TRaSH's as soon as the app exists, and stays the same
+    let id = server::quality::default_profile(&st.db, "movie").unwrap();
+    assert_eq!(server::trash::default_profile(&st.db, "movie"), Some(id));
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert_eq!(server::quality::default_profile(&st.db, "movie").unwrap(), id, "nothing replaced it in the background");
+    let (s, _) = call(&app, "GET", &format!("/radarr/api/v3/qualityprofile/{id}"), None).await;
+    assert_eq!(s, StatusCode::OK);
+}
