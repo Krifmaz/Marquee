@@ -1,68 +1,54 @@
-# Marqueue
+# Marquee
 
-One self-hosted Rust program to request movies, TV, anime, ebooks and audiobooks, then find, download, import and upgrade them. Replaces Sonarr, Radarr, Readarr and Overseerr/Jellyseerr.
+One self-hosted app that replaces Seerr, Sonarr and Radarr: requests, TV and movies with one database and one
+sign-in, API-compatible with the tools that already talk to them. Downloads go through Lantern. The goal and the
+build order are in [docs/GOALS.md](docs/GOALS.md); it is at the start (the kit template), with no release yet.
 
-Release names are parsed by [playbill](crates/playbill).
+Made from the [Krifmaz kit](https://github.com/Krifmaz/kit) template (v0.2.1): the kit's look and its
+ease-of-use features from the first commit.
 
-## Workspace
-
-| Crate | Role |
+| Folder | What it is |
 | --- | --- |
-| `marqueue-server` | The `marqueue` binary: axum API and web app |
-| `marqueue-core` | Media model, quality profiles, release scoring |
-| `marqueue-metadata` | Metadata provider trait and local cache |
-| `marqueue-adapters` | Traits for indexers, download clients, media servers, notifiers |
-| `scoutline` | Built-in indexer engine: Scoutline embedded, no Prowlarr needed |
+| `server/` | Axum server with the kit server crates: health, changelog (What's new), notices, bug reports, diagnostics, settings |
+| `web/` | Leptos web app with the kit components and the kit's default theme, served at `/` by the server |
+| `desktop/` | Desktop app (Linux, Windows, macOS) on Iced with kit-iced: connect, app-token sign-in, every kit feature, the update notice on the app's own releases |
+| `docs/releases/` | one Markdown file per release: the release notes and What's new |
 
-## Run
+## First steps
 
-```
-cargo run --bin marqueue
-curl 'localhost:7979/api/v1/parse?name=The.Bear.S03E04.2160p.WEB-DL.DDP5.1.HDR.H.265-FLUX'
-```
+1. Make the lock files and commit them (CI and the Docker build use `--locked`):
+   `(cd server && cargo generate-lockfile) && (cd web && cargo generate-lockfile)`.
+2. Push to GitHub. Every pull request runs the checks; every merge to main is a release.
+3. The first start makes the owner account: set `APP_ADMIN_PASSWORD` (and `APP_ADMIN_USER`, default `admin`),
+   or read the password it prints (also in `initial_admin_password.txt` in the data folder).
 
-`MARQUEUE_LISTEN` sets the address (default `0.0.0.0:7979`). `MARQUEUE_CONFIG` sets the config file (default `/config/marqueue.toml`); the first start writes a commented one.
-
-## Indexers
-
-Marqueue searches indexers itself through the embedded Scoutline engine: every indexer at once, results parsed and de-duplicated, failing sites backed off. Add them to `marqueue.toml` and restart:
-
-```toml
-[[indexer]]
-id = "nzbgeek"
-name = "NZBgeek"
-protocol = "newznab"            # or "torznab"
-url = "https://api.nzbgeek.info"
-api_key = "YOUR-INDEXER-KEY"
-```
-
-These are the same blocks as a standalone `scoutline.toml`, so they can be copied across.
-
-Sites without an API run through the YAML definitions Prowlarr and Jackett use. Put `<id>.yml` in `/config/definitions` (`definitions_dir` changes it) and add:
-
-```toml
-[[indexer]]
-id = "mytracker"
-definition = "mytracker"
-[indexer.settings]
-username = "me"
-password = "secret"
-```
-
-| Endpoint | What |
-| --- | --- |
-| `GET /api/v1/search?type=tv&title=The+Bear&season=3&episode=4` | Search all indexers (`type`: movie, tv, anime, ebook, audiobook; also `year`, `absolute`) |
-| `GET /api/v1/indexers` | Indexers and their health |
-
-## Docker
-
-Images for amd64 and arm64 are published to `ghcr.io/krifmaz/marqueue` on every push.
+## Run it
 
 ```
-docker compose up -d
-curl localhost:7979/api/v1/health
+cd web && trunk build && cd ..
+cd server && APP_DATA_DIR=../data APP_STATIC_DIR=../web/dist cargo run
 ```
 
-## Status
+Then open <http://localhost:8080>. With Docker:
 
-Phase 1 (foundation). See the spec for the full plan.
+```
+docker build -t marquee .
+docker run --read-only -p 8080:8080 -v marquee-data:/data marquee
+```
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `APP_PORT` | the port the server listens on | `8080` |
+| `APP_DATA_DIR` | where the database and uploads live (the only folder it writes to) | `/data` |
+| `APP_STATIC_DIR` | the built web app | `/app/static` |
+| `APP_ADMIN_USER`, `APP_ADMIN_PASSWORD` | the owner made at the first start | `admin`, a printed password |
+| `APP_NAME`, `APP_SESSION_DAYS`, `APP_API_KEY` | settings (settings.toml); set here they are locked in Settings | |
+
+## Checks
+
+In `server/`, `web/` and `desktop/`: `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
+Every merge to main is released as `vX.Y.Z` with the Docker image `ghcr.io/krifmaz/marquee:<version>` and `:latest`.
+Desktop installers (Linux tar.gz, Windows zip, macOS dmg) build with Actions → release → "apps". Signing is optional,
+from the secrets `WINDOWS_CERT_PFX_BASE64`, `WINDOWS_CERT_PASSWORD`, `MACOS_CERT_P12_BASE64`, `MACOS_CERT_PASSWORD`,
+`MACOS_SIGN_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID` and `APPLE_APP_PASSWORD`; without them the zip is unsigned and the
+dmg is signed ad hoc.

@@ -1,9 +1,0 @@
-{"data": {"groups": [
-  {"artist": "Boards of Canada", "album": "Geogaddi", "year": 2002, "category": "music",
-   "torrents": [
-     {"id": 7, "format": "FLAC", "magnet": "magnet:?xt=urn:btih:ABCDEF0123456789ABCDEF0123456789ABCDEF01&dn=x",
-      "bytes": 524288000, "stats": {"seeders": 40, "leechers": 1}, "added": 1760342400, "free": true},
-     {"id": 8, "format": "MP3 320", "magnet": "magnet:?xt=urn:btih:1111111111111111111111111111111111111111",
-      "bytes": 157286400, "stats": {"seeders": 12, "leechers": 0}, "added": "2026-10-01 10:00:00", "free": false}
-   ]}
-]}}
