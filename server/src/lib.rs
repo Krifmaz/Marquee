@@ -26,11 +26,13 @@ pub mod arr_common;
 pub mod auth;
 pub mod calendar;
 pub mod checks;
+pub mod custom_filters;
 pub mod decide;
 pub mod downloads;
 pub mod import;
 pub mod lantern;
 pub mod library;
+pub mod localization;
 pub mod mail;
 pub mod media_servers;
 pub mod migrate;
@@ -145,6 +147,7 @@ impl AppState {
         movies::migrate(&db)?;
         series::migrate(&db)?;
         arr::migrate(&db)?;
+        custom_filters::migrate(&db)?;
         downloads::migrate(&db)?;
         // the tracks' own tables (docs/TRACKS.md)
         trash::migrate(&db)?;

@@ -4,6 +4,7 @@
 
 ### Added
 - The real Sonarr, Radarr and Seerr web apps, built from the pinned upstream releases in the Encore look: Seerr at /requests for everyone signed in, Sonarr at /sonarr and Radarr at /radarr for admins, linked from the sidebar. Signing in from one of them comes back to it. Pages whose API Marquee doesn't answer yet show upstream's own error until the backend ports land.
+- The Sonarr and Radarr APIs answer what their own web apps load first: the interface strings (localization, in English), saved list filters (custom filters, kept per app), indexer flags and Radarr's collections list (empty until collections come over).
 - Parity checklist: docs/PARITY.md lists every Sonarr, Radarr and Seerr module, API endpoint and UI page to port, with where Marquee stands today; UPSTREAM.lock pins the exact upstream commits, and scripts/parity.py rewrites the endpoint tables from them.
 - Release qualities are now read by Sonarr's and Radarr's own quality rules, ported line by line: movies get Radarr's qualities (CAM, TELESYNC, BR-DISK, Remux and the rest) and TV gets Sonarr's, proper, repack and anime v2/v3 count as upstream, and the upstream test cases run with every build.
 - Android app: an Anime tab in the bottom bar, its own section with Library (each season its own entry, AniList posters, a countdown to the next episode), Discover (trending, this season, upcoming, top rated, by genre or studio) with Request that asks Dub only, Dual audio or Sub only and the subtitle language (your default first), and the calendar and queue for anime only.
