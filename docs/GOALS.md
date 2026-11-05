@@ -42,6 +42,10 @@ From the owner's message of 2026-11-05, one pull request each:
   Prowlarr/Torznab/Newznab are Lantern's job); hardlinks/atomic moves, import, rename, upgrade, blocklist and
   failed-download handling stay in Marquee. It also replaces the earlier "use my current Prowlarr as the indexer
   until Lantern is ready".
+- 2026-11-05 · **Fresh Rust, original apps as reference only.** Sonarr, Radarr, Seerr and Prowlarr (source, docs, real
+  API responses) are reference only; everything is written fresh in Rust. Data files are reused directly (indexer
+  YAML definitions, TRaSH Guides profiles). The repository is GPL-3.0, with the original projects and data sources
+  credited in README.md.
 
 **v0.1.0** ships when movies, TV, downloads and the TRaSH defaults work end to end. Until then `docs/RELEASE_HOLD`
 keeps the release workflow from publishing; the v0.1.0 pull request deletes it.
