@@ -53,6 +53,9 @@ enum class Tab(
     /** Every movie and series ([LibraryPage]). */
     Library("Library", R.drawable.ic_tab_library),
 
+    /** Anime, its own section: library by season, Discover, calendar and queue ([AnimePage]). */
+    Anime("Anime", R.drawable.ic_tab_anime),
+
     /** Settings, What's new, bug reports, crashes and updates ([HomePage]). */
     More("More", R.drawable.ic_tab_more),
 }
@@ -116,6 +119,7 @@ fun MainPage(app: App, base: String, bugs: BugReportsHost, open: (Page) -> Unit,
                 Tab.Requests -> RequestsPage(app, me)
                 Tab.Queue -> QueuePage(app, me?.admin)
                 Tab.Library -> LibraryPage(app, me?.admin)
+                Tab.Anime -> AnimePage(app, me)
                 Tab.More -> HomePage(app, base, me, bugs, open, onChangeServer)
             }
         }
@@ -126,7 +130,7 @@ fun MainPage(app: App, base: String, bugs: BugReportsHost, open: (Page) -> Unit,
                     selected = i == tab,
                     onClick = { tab = i },
                     icon = { Icon(painterResource(t.icon), contentDescription = null) },
-                    label = { Text(t.label) },
+                    label = { Text(t.label, maxLines = 1, softWrap = false) },
                     colors =
                     NavigationBarItemDefaults.colors(
                         selectedIconColor = p.text,
