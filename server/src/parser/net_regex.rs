@@ -11,6 +11,9 @@
 //! - **A `[` inside a character class** (`[([]`) is a plain character in .NET; here it is escaped.
 //! - **A look-behind whose alternatives differ in length** (`(?<!HD[._ -]|HD)`): `(?<!a|b)` becomes
 //!   `(?<!a)(?<!b)` and `(?<=a|b)` becomes `(?:(?<=a)|(?<=b))`, which mean the same.
+//! - **A look-behind of varying length** (`(?<!WEB[-_. ]?)`, `(?<!\d+)`): a last piece that may be left out
+//!   (`x?`) gives two alternatives, with and without it, which are then split as above; a first piece that repeats
+//!   (`x+`, `x*`) is read once or left out, since text that ends in `x+…` also ends in `x…`.
 //!
 //! .NET also keeps every repetition of a group (`Group.Captures`); `fancy-regex` keeps the last. The parsers that
 //! need the repetitions read them again from the text the group covered.
@@ -278,6 +281,74 @@ fn alternatives(p: &str) -> Vec<String> {
     out
 }
 
+/// One piece of a pattern and its quantifier (`?`, `+`, `*`, `{n,m}`, maybe lazy), at the top level.
+fn pieces(p: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut i = 0;
+    while i < p.len() {
+        let c = p[i..].chars().next().expect("in bounds");
+        let end = match c {
+            '\\' => i + 1 + p[i + 1..].chars().next().map_or(0, char::len_utf8),
+            '[' => {
+                // a class: up to its unescaped `]` (a `]` right after `[` or `[^` is a plain character)
+                let mut j = i + 1;
+                if p[j..].starts_with('^') {
+                    j += 1;
+                }
+                if p[j..].starts_with(']') {
+                    j += 1;
+                }
+                while j < p.len() && !p[j..].starts_with(']') {
+                    j += if p[j..].starts_with('\\') {
+                        1 + p[j + 1..].chars().next().map_or(0, char::len_utf8)
+                    } else {
+                        p[j..].chars().next().map_or(1, char::len_utf8)
+                    };
+                }
+                (j + 1).min(p.len())
+            }
+            '(' => closing_paren(p, i + 1).map_or(p.len(), |c| c + 1),
+            _ => i + c.len_utf8(),
+        };
+        let mut q = end;
+        if let Some(n) = p[q..].chars().next() {
+            if matches!(n, '?' | '+' | '*') {
+                q += 1;
+            } else if n == '{' {
+                if let Some(close) = p[q..].find('}') {
+                    q += close + 1;
+                }
+            }
+            if q > end && p[q..].starts_with('?') {
+                q += 1;
+            }
+        }
+        out.push((p[i..end].to_string(), p[end..q].to_string()));
+        i = q;
+    }
+    out
+}
+
+/// The fixed-length alternatives a look-behind alternative of varying length stands for (see the module notes).
+fn fixed_lengths(alt: &str) -> Vec<String> {
+    let mut ps = pieces(alt);
+    match ps.first().map(|(_, q)| q.as_str()) {
+        Some("+") => ps[0].1.clear(),
+        Some("*") => {
+            ps.remove(0);
+        }
+        _ => {}
+    }
+    let join = |ps: &[(String, String)]| ps.iter().map(|(a, q)| format!("{a}{q}")).collect::<String>();
+    if ps.len() > 1 && ps.last().is_some_and(|(_, q)| q == "?") {
+        let mut with = ps.clone();
+        with.last_mut().expect("not empty").1.clear();
+        ps.pop();
+        return vec![join(&with), join(&ps)];
+    }
+    vec![join(&ps)]
+}
+
 /// Rewrites look-behinds with several alternatives into one look-behind per alternative (see the module notes).
 fn split_lookbehinds(p: &str) -> String {
     let mut out = String::with_capacity(p.len());
@@ -300,7 +371,7 @@ fn split_lookbehinds(p: &str) -> String {
             if let Some(close) = closing_paren(p, i + 4) {
                 let positive = bytes[i + 3] == b'=';
                 let body = split_lookbehinds(&p[i + 4..close]);
-                let alts = alternatives(&body);
+                let alts: Vec<String> = alternatives(&body).iter().flat_map(|a| fixed_lengths(a)).collect();
                 if alts.len() > 1 {
                     if positive {
                         out.push_str("(?:");
@@ -313,7 +384,7 @@ fn split_lookbehinds(p: &str) -> String {
                     }
                 } else {
                     out.push_str(&p[i..i + 4]);
-                    out.push_str(&body);
+                    out.push_str(&alts.concat());
                     out.push(')');
                 }
                 i = close + 1;
@@ -390,6 +461,19 @@ mod tests {
         assert!(!r.is_match("Movie HDDVD"));
         let r = NetRegex::new(r"(?<=x|yy)z", NONE);
         assert!(r.is_match("xz") && r.is_match("yyz") && !r.is_match("yz"));
+    }
+
+    #[test]
+    fn look_behinds_of_varying_length_work() {
+        let r = NetRegex::new(r"(?<!WEB[-_. ]?)\bDL\b", I);
+        assert!(r.is_match("German DL 1080p"));
+        assert!(!r.is_match("German WEB-DL 1080p"));
+        assert!(!r.is_match("German WEBDL") && !r.is_match("WEB DL"));
+        let r = NetRegex::new(r"(?<!\d+)\d{1,3}(?!\d+)$", NONE);
+        assert!(r.is_match("Title - 2") && r.is_match("a12"));
+        assert!(!r.is_match("2012"));
+        assert_eq!(fixed_lengths(r"[ab]c?"), vec!["[ab]c".to_string(), "[ab]".to_string()]);
+        assert_eq!(fixed_lengths(r"\d*x"), vec!["x".to_string()]);
     }
 
     #[test]
