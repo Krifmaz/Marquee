@@ -16,6 +16,7 @@
 //! | `/api/quality-profiles` | [`quality`] |
 //! | `/radarr/api/v3/*` (the Radarr v3 API, Marquee's API key) | [`radarr`] (shared parts in [`arr`], [`arr_common`]) |
 //! | `/sonarr/api/v3/*` (the Sonarr v3 API, Marquee's API key) | [`sonarr`] |
+//! | `/sonarr/`, `/radarr/`, `/requests/` (the forked Sonarr, Radarr and Seerr web apps) | [`upstream_ui`] |
 //!
 //! Everything the app adds of its own goes into [`app`] next to them.
 
@@ -49,6 +50,7 @@ pub mod sonarr;
 pub mod tags;
 pub mod tmdb;
 pub mod trash;
+pub mod upstream_ui;
 pub mod users;
 
 use axum::http::{header, HeaderValue};
@@ -308,6 +310,7 @@ pub fn app(st: AppState) -> Router {
         .merge(media_servers::router())
         .merge(calendar::router())
         .merge(sonarr::router(st.clone()))
+        .merge(upstream_ui::router())
         .with_state(st)
         .fallback_service(spa)
         .layer(axum::middleware::from_fn(security_headers))

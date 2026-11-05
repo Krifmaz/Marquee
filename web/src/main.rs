@@ -130,6 +130,13 @@ fn main() {
         let Some(root) = rt::by_id("app").and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
         match me {
             Some(me) => {
+                // back to the forked web app (/sonarr, /radarr, /requests) that sent a signed-out visitor here
+                if let Some(next) = next_page() {
+                    if let Some(w) = rt::window() {
+                        let _ = w.location().replace(&next);
+                        return;
+                    }
+                }
                 let admin = me.get("is_admin").and_then(Value::as_bool).unwrap_or(false);
                 leptos::mount::mount_to(root, move || view! { <Shell me=me.clone()/> }).forget();
                 // the notice slot is part of the shell: start once it is drawn
@@ -147,6 +154,23 @@ fn main() {
         }
     });
 }
+
+/// The page to go back to after signing in: `?next=` of the address, when it is a page of this server.
+fn next_page() -> Option<String> {
+    let search = rt::window()?.location().search().ok()?;
+    let next = web_sys::UrlSearchParams::new_with_str(&search).ok()?.get("next")?;
+    safe_next(&next).then_some(next)
+}
+
+/// Whether `next` is a path on this server (`/sonarr/`), never another site (`//evil.example`, `/\evil`).
+pub fn safe_next(next: &str) -> bool {
+    next.starts_with('/') && !next.starts_with("//") && !next.starts_with("/\\") && !next.contains("://")
+}
+
+/// The forked upstream web apps (`server/src/upstream_ui.rs`), opened as their own pages: (href, label, admins
+/// only).
+pub const UPSTREAM_APPS: [(&str, &str, bool); 3] =
+    [("/requests/", "Seerr", false), ("/sonarr/", "Sonarr", true), ("/radarr/", "Radarr", true)];
 
 /// Panics go to the browser console with their message.
 fn console_error() {
@@ -248,6 +272,11 @@ fn Shell(me: Value) -> impl IntoView {
                     <NavLink href="/activity" label="Activity" route=route/>
                     {track_links.into_iter().map(|(href, label)| view! { <NavLink href=href label=label route=route/> }).collect_view()}
                 </nav>
+                <nav class="nav nav-under" aria-label="Upstream apps">
+                    {UPSTREAM_APPS.iter().filter(|(_, _, only_admins)| admin || !only_admins).map(|(href, label, _)| {
+                        view! { <a href=*href><span>{*label}</span></a> }
+                    }).collect_view()}
+                </nav>
                 <nav class="nav nav-under">
                     {admin.then(|| view! { <NavLink href="/move-in" label="Move in" route=route/> })}
                     <NavLink href="/bug-reports" label="Bug reports" route=route/>
@@ -274,6 +303,20 @@ fn Shell(me: Value) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::Route;
+
+    #[test]
+    fn next_only_goes_to_this_server() {
+        assert!(super::safe_next("/sonarr/") && super::safe_next("/requests/movie/603"));
+        for bad in ["//evil.example", "/\\evil.example", "https://evil.example", "sonarr", "/x?u=http://a"] {
+            assert!(!super::safe_next(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_upstream_apps_keep_sonarr_and_radarr_for_admins() {
+        let open: Vec<&str> = super::UPSTREAM_APPS.iter().filter(|a| !a.2).map(|a| a.1).collect();
+        assert_eq!(open, ["Seerr"]);
+    }
 
     #[test]
     fn sign_out_asks_first() {
