@@ -73,15 +73,20 @@ dmg is signed ad hoc.
 
 Marquee is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only).
 
-Marquee is written from scratch in Rust. These projects were used as reference only (their source, documentation
-and real API answers, to stay compatible with the tools that talk to them); no code was copied from them:
+Marquee is a Rust port of Sonarr, Radarr and Seerr: it carries their behaviour, API and web UI over faithfully, at the
+upstream commits pinned in [UPSTREAM.lock](UPSTREAM.lock), and their forked web UIs are served with the Encore look.
+What is ported so far is tracked in [docs/PARITY.md](docs/PARITY.md). All credit for the original design and code
+goes to their authors:
 
-| Project | License | Used for |
+| Project | License | Ported for |
 | --- | --- | --- |
-| [Sonarr](https://github.com/Sonarr/Sonarr) | GPL-3.0 | the Sonarr v3 API Marquee answers (TV) |
-| [Radarr](https://github.com/Radarr/Radarr) | GPL-3.0 | the Radarr v3 API Marquee answers (movies) |
-| [Seerr](https://github.com/seerr-team/seerr) (Overseerr, Jellyseerr) | MIT | the Seerr API Marquee answers (requests) |
-| [Prowlarr](https://github.com/Prowlarr/Prowlarr) | GPL-3.0 | how Prowlarr adds Sonarr and Radarr apps and syncs indexers |
+| [Sonarr](https://github.com/Sonarr/Sonarr) (fork: [Krifmaz/Sonarr](https://github.com/Krifmaz/Sonarr)) | GPL-3.0 | TV: backend behaviour, the Sonarr v3 API and the web UI |
+| [Radarr](https://github.com/Radarr/Radarr) (fork: [Krifmaz/Radarr](https://github.com/Krifmaz/Radarr)) | GPL-3.0 | movies: backend behaviour, the Radarr v3 API and the web UI |
+| [Seerr](https://github.com/seerr-team/seerr) (Overseerr, Jellyseerr; fork: [Krifmaz/seerr](https://github.com/Krifmaz/seerr)) | MIT | requests: backend behaviour, the Seerr API and the web UI |
+| [Prowlarr](https://github.com/Prowlarr/Prowlarr) | GPL-3.0 | reference for how Prowlarr adds Sonarr and Radarr apps and syncs indexers |
+
+Seerr's MIT code is used under its MIT license (copyright notice kept with the ported code); together with the GPL-3.0
+code of Sonarr and Radarr the whole is distributed under GPL-3.0-only.
 
 Data used as it is:
 

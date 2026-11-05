@@ -43,7 +43,11 @@ From the owner's message of 2026-11-05, one pull request each:
   Prowlarr/Torznab/Newznab are Lantern's job); hardlinks/atomic moves, import, rename, upgrade, blocklist and
   failed-download handling stay in Marquee. It also replaces the earlier "use my current Prowlarr as the indexer
   until Lantern is ready".
-- 2026-11-05 · **Fresh Rust, original apps as reference only.** Sonarr, Radarr, Seerr and Prowlarr (source, docs, real
+- 2026-11-05 · **Port, don't reimagine.** This replaces "fresh Rust, original apps as reference only" below. Sonarr,
+  Radarr and Seerr are forked into the Krifmaz account and pinned to exact commits in `UPSTREAM.lock`; their backends
+  are ported to Rust module by module, faithfully, and their own web UIs are served from the forks with the Encore
+  look. `docs/PARITY.md` is the checklist (backend modules, API endpoints, UI pages) and says where Marquee stands.
+- 2026-11-05 · *(Replaced by "Port, don't reimagine" above.)* **Fresh Rust, original apps as reference only.** Sonarr, Radarr, Seerr and Prowlarr (source, docs, real
   API responses) are reference only; everything is written fresh in Rust. Data files are reused directly (indexer
   YAML definitions, TRaSH Guides profiles). The repository is GPL-3.0, with the original projects and data sources
   credited in README.md.
