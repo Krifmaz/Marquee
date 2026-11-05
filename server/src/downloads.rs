@@ -755,6 +755,7 @@ async fn import_checked(st: &AppState, id: i64, check: bool) -> Result<()> {
                 "UPDATE downloads SET status='imported', imported=?, message='', updated=? WHERE id=?",
                 p![now_iso(), now_iso(), id],
             )?;
+            crate::media_servers::scan_after_import(st);
             if let Ok(l) = Lantern::from(st) {
                 if let Err(e) = l.imported(&d.lantern_id).await {
                     tracing::warn!("Lantern wasn't told {} is imported: {}", d.title, e.detail);
