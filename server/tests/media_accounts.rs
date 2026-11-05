@@ -238,11 +238,61 @@ async fn fake() -> (String, F) {
             }),
         )
         .route("/tv/api/v2/resources", get(|| async { axum::Json(json!([{ "clientIdentifier": "machine1", "provides": "server" }])) }))
+        // ---- jfa-go (admin "jfa", password "jfa-pass")
+        .route(
+            "/jfa/token/login",
+            get(|h: HeaderMap| async move {
+                // "jfa:jfa-pass" in base64
+                if h.get("authorization").and_then(|v| v.to_str().ok()) == Some("Basic amZhOmpmYS1wYXNz") {
+                    (StatusCode::OK, axum::Json(json!({ "token": "jfa-token" })))
+                } else {
+                    (StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": "invalid" })))
+                }
+            }),
+        )
+        .route("/jfa/users", get(|h: HeaderMap| async move { jfa_auth(&h); axum::Json(jfa_users()) }))
+        .route("/jfa/invites", get(|h: HeaderMap| async move { jfa_auth(&h); axum::Json(jfa_invites()) }))
+        .route(
+            "/jfa/profiles",
+            get(|| async {
+                axum::Json(json!({ "default_profile": "Kids", "profiles": {
+                    "Kids": { "admin": false, "libraries": "1", "fromUser": "kim" },
+                    "Everyone": { "admin": false, "libraries": "all", "fromUser": "zed" }
+                } }))
+            }),
+        )
         .with_state(f.clone());
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
     (format!("http://{addr}"), f)
+}
+
+/// Checks that a jfa-go request carries the session token.
+fn jfa_auth(h: &HeaderMap) {
+    assert_eq!(h.get("authorization").and_then(|v| v.to_str().ok()), Some("Bearer jfa-token"));
+}
+
+/// jfa-go's users (ids are the Jellyfin users').
+fn jfa_users() -> Value {
+    let soon = 4_102_444_800i64; // 1 January 2100
+    json!({ "users": [
+        { "id": "k1", "name": "kim", "email": "kim@example.com", "expiry": soon, "admin": false, "disabled": false },
+        { "id": "z1", "name": "zed", "email": "zed@example.com", "expiry": 0, "admin": false, "disabled": true },
+        { "id": "b1", "name": "boss", "email": "", "expiry": 0, "admin": true, "disabled": false },
+        { "id": "gone", "name": "ghost", "email": "", "expiry": 0, "admin": false, "disabled": false }
+    ], "last_page": true })
+}
+
+/// jfa-go's invites: one open, one ended, one used up.
+fn jfa_invites() -> Value {
+    let now = server::auth::now() as i64;
+    json!({ "invites": [
+        { "code": "fam1", "label": "Family", "profile": "Kids", "valid_till": now + 7 * 86400, "created": now, "no_limit": false,
+          "remaining_uses": 2, "user_expiry": true, "user_months": 1, "user_days": 0 },
+        { "code": "old1", "profile": "Everyone", "valid_till": now - 60, "created": now - 999, "no_limit": true },
+        { "code": "used1", "profile": "Everyone", "valid_till": now + 86400, "created": now, "no_limit": false, "remaining_uses": 0 }
+    ] })
 }
 
 /// A fresh server on a data folder of its own, joined to the stand-ins; `creates` turns on accounts for
@@ -631,4 +681,75 @@ async fn people_sign_in_with_plex() {
     let (s, v, cookie) = call(&app, req("POST", "/api/auth/plex/finish", false, Some(json!({ "id": "77" })))).await;
     assert_eq!((s, v["username"].as_str()), (StatusCode::OK, Some("fan")), "{v}");
     assert!(!cookie.is_empty());
+}
+
+#[tokio::test]
+async fn jfa_go_users_and_invites_move_in_after_a_dry_run() {
+    let (app, st, f) = server("jfa-go", false).await;
+    {
+        let mut g = f.lock().unwrap();
+        g.users.push(json!({ "Id": "k1", "Name": "kim", "Password": "kim-jellyfin", "Policy": { "IsAdministrator": false, "IsDisabled": false, "EnableAllFolders": false, "EnabledFolders": ["lib2"] } }));
+        g.users.push(json!({ "Id": "z1", "Name": "zed", "Password": "zed-jellyfin", "Policy": { "IsAdministrator": false, "IsDisabled": true, "EnableAllFolders": true } }));
+        g.users.push(json!({ "Id": "b1", "Name": "boss", "Password": "x", "Policy": { "IsAdministrator": true, "IsDisabled": false, "EnableAllFolders": true } }));
+    }
+    // kim already has an account here, not linked yet
+    call(&app, req("POST", "/api/users", true, Some(json!({ "username": "kim", "password": "kim-password" })))).await;
+    let base = st.settings.str("jellyfin_url");
+    let src = |apply: bool, pw: &str| json!({ "url": format!("{base}/jfa/"), "username": "jfa", "password": pw, "apply": apply });
+
+    let (s, v, _) = call(&app, req("POST", "/api/migrate/jfa-go", true, Some(src(false, "wrong")))).await;
+    assert_eq!(
+        (s, v["detail"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("jfa-go turned the name or password down. Use a jfa-go admin's sign-in."))
+    );
+    let (s, v, _) = call(&app, req("POST", "/api/migrate/jfa-go", false, Some(src(false, "jfa-pass")))).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED, "{v}");
+
+    // the dry run says what would happen and changes nothing
+    let (s, dry, _) = call(&app, req("POST", "/api/migrate/jfa-go", true, Some(src(false, "jfa-pass")))).await;
+    assert_eq!(s, StatusCode::OK, "{dry}");
+    assert_eq!((dry["source"].as_str(), dry["applied"].as_bool()), (Some("jfa-go"), Some(false)));
+    assert_eq!((dry["added"].as_i64(), dry["skipped"].as_i64(), dry["problems"].as_i64()), (Some(3), Some(3), Some(1)), "{dry}");
+    let line = |r: &Value, t: &str| r["items"].as_array().unwrap().iter().find(|i| i["title"] == t).cloned().unwrap_or(Value::Null);
+    assert!(line(&dry, "User kim")["detail"].as_str().unwrap().starts_with("linked to the account with the same name"), "{dry}");
+    assert_eq!(line(&dry, "User boss")["action"], "skip");
+    assert_eq!(line(&dry, "User ghost")["action"], "problem");
+    assert_eq!(
+        line(&dry, "Invite Family")["detail"],
+        "2 uses left, ends ".to_string() + line(&dry, "Invite Family")["detail"].as_str().unwrap().split("ends ").nth(1).unwrap()
+    );
+    let (_, users, _) = call(&app, req("GET", "/api/users", true, None)).await;
+    assert_eq!(users.as_array().unwrap().len(), 2, "nothing made in a dry run");
+
+    // applied
+    let (s, done, _) = call(&app, req("POST", "/api/migrate/jfa-go", true, Some(src(true, "jfa-pass")))).await;
+    assert_eq!((s, done["applied"].as_bool(), done["added"].as_i64()), (StatusCode::OK, Some(true), Some(3)), "{done}");
+    let (_, users, _) = call(&app, req("GET", "/api/users", true, None)).await;
+    let find = |n: &str| users.as_array().unwrap().iter().find(|u| u["username"] == n).cloned().unwrap();
+    let (kim, zed) = (find("kim"), find("zed"));
+    assert_eq!(kim["email"], "kim@example.com");
+    assert!(kim["expires_at"].as_f64().unwrap() > server::auth::now() + 39.0 * 86400.0);
+    assert_eq!((zed["disabled"].as_bool(), zed["email"].as_str()), (Some(true), Some("zed@example.com")));
+    let (_, a, _) = call(&app, req("GET", &format!("/api/users/{}/media", kim["id"]), true, None)).await;
+    assert_eq!((a["jellyfin"]["remote_id"].as_str(), a["jellyfin"]["libraries"].clone()), (Some("k1"), json!(["lib2"])), "{a}");
+    assert_eq!(jf_user(&f, "kim").unwrap()["Policy"]["EnabledFolders"], json!(["lib2"]), "nothing changed on Jellyfin");
+
+    let (_, invites, _) = call(&app, req("GET", "/api/invites", true, None)).await;
+    let inv = &invites[0];
+    assert_eq!(
+        (inv["code"].as_str(), inv["label"].as_str(), inv["max_uses"].as_i64(), inv["account_days"].as_i64()),
+        (Some("fam1"), Some("Family"), Some(2), Some(30))
+    );
+    assert_eq!(inv["jellyfin"]["libraries"], json!(["lib2"]), "the profile's user's libraries");
+    assert_eq!(invites.as_array().unwrap().len(), 1);
+
+    // kim signs in with Jellyfin, and that is the password here from now on
+    let (s, _, _) =
+        call(&app, req("POST", "/api/auth/jellyfin", false, Some(json!({ "username": "kim", "password": "kim-jellyfin" })))).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(login(&app, "kim", "kim-jellyfin").await, StatusCode::OK);
+
+    // a second run finds everything here already
+    let (_, again, _) = call(&app, req("POST", "/api/migrate/jfa-go", true, Some(src(true, "jfa-pass")))).await;
+    assert_eq!((again["added"].as_i64(), again["problems"].as_i64()), (Some(0), Some(1)), "{again}");
 }

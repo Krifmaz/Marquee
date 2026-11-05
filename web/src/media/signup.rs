@@ -217,7 +217,6 @@ pub fn JellyfinSignIn() -> impl IntoView {
 
 /// Signs in with Plex: opens plex.tv in a new window and asks Marquee every two seconds (for three minutes)
 /// whether the person finished there.
-#[allow(dead_code)] // used by SignInOptions, which core's sign-in page draws
 fn plex_sign_in(set_error: WriteSignal<Option<String>>, set_busy: WriteSignal<bool>) {
     // the window opens on the click, so the browser doesn't block it; plex.tv's address follows
     let popup = kit_leptos::rt::window().and_then(|w| w.open_with_url_and_target("about:blank", "_blank").ok().flatten());
@@ -265,7 +264,6 @@ fn plex_sign_in(set_error: WriteSignal<Option<String>>, set_busy: WriteSignal<bo
 
 /// Under the sign-in form: "Sign in with Plex", "Sign in with Jellyfin" and "Forgot your password?", each
 /// only when this server offers it.
-#[allow(dead_code)] // core's sign-in page (pages.rs) draws it
 #[component]
 pub fn SignInOptions() -> impl IntoView {
     let opts = LocalResource::new(|| async { api::get("/public/sign-in-options").await.ok() });
