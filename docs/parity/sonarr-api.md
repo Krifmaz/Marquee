@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.3014 ([`cab419ade8`](https://github.com/Sonarr/Sonarr/tree/cab419ade8ac7fcab5bf80394ee492abd35d5f5a)). Marquee serves it under `/sonarr`.
 
-**52 done, 10 stub, 172 missing of 234.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**60 done, 10 stub, 164 missing of 234.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee |
 | --- | --- | --- |
@@ -45,11 +45,11 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.301
 | `GET` | `/api/v3/config/ui` | ✅ Done |
 | `GET` | `/api/v3/config/ui/{id}` | ⬜ Missing |
 | `PUT` | `/api/v3/config/ui/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/customfilter` | ⬜ Missing |
-| `POST` | `/api/v3/customfilter` | ⬜ Missing |
-| `DELETE` | `/api/v3/customfilter/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/customfilter/{id}` | ⬜ Missing |
-| `PUT` | `/api/v3/customfilter/{id}` | ⬜ Missing |
+| `GET` | `/api/v3/customfilter` | ✅ Done |
+| `POST` | `/api/v3/customfilter` | ✅ Done |
+| `DELETE` | `/api/v3/customfilter/{id}` | ✅ Done |
+| `GET` | `/api/v3/customfilter/{id}` | ✅ Done |
+| `PUT` | `/api/v3/customfilter/{id}` | ✅ Done |
 | `GET` | `/api/v3/customformat` | ✅ Done |
 | `POST` | `/api/v3/customformat` | ⬜ Missing |
 | `DELETE` | `/api/v3/customformat/bulk` | ⬜ Missing |
@@ -133,8 +133,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.301
 | `DELETE` | `/api/v3/languageprofile/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/languageprofile/{id}` | ⬜ Missing |
 | `PUT` | `/api/v3/languageprofile/{id}` | ⬜ Missing |
-| `GET` | `/api/v3/localization` | ⬜ Missing |
-| `GET` | `/api/v3/localization/language` | ⬜ Missing |
+| `GET` | `/api/v3/localization` | ✅ Done |
+| `GET` | `/api/v3/localization/language` | ✅ Done |
 | `GET` | `/api/v3/localization/{id}` | ⬜ Missing |
 | `GET` | `/api/v3/log` | ⬜ Missing |
 | `GET` | `/api/v3/log/file` | ⬜ Missing |
@@ -234,7 +234,7 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Sonarr v4.0.20.301
 | `GET` | `/api/v3/wanted/missing` | ✅ Done |
 | `GET` | `/api/v3/wanted/missing/{id}` | ⬜ Missing |
 | `GET` | `/content/{path}` | ⬜ Missing |
-| `GET` | `/feed/v3/calendar/sonarr.ics` | ⬜ Missing |
+| `GET` | `/feed/v3/calendar/sonarr.ics` | ✅ Done |
 | `GET` | `/login` | ⬜ Missing |
 | `POST` | `/login` | ⬜ Missing |
 | `GET` | `/logout` | ⬜ Missing |
