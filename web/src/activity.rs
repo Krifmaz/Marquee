@@ -16,6 +16,8 @@ pub fn standing(d: &Value) -> (&'static str, &'static str) {
         "completed" | "importing" => ("Putting in the library", "info"),
         "imported" => ("In the library", "ok"),
         "importBlocked" => ("Needs a look", "warn"),
+        "review" => ("Waiting in the anime Review queue", "warn"),
+        "turnedDown" => ("Turned down, searching again", ""),
         "failed" => ("Failed", "err"),
         "removed" => ("Stopped", ""),
         _ => ("Unknown", ""),

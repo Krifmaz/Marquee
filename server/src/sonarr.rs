@@ -404,7 +404,38 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
     let Some(root) = root else {
         return validation("RootFolderPath", "'Root Folder Path' must not be empty.", json!(""), "NotEmptyValidator");
     };
-    let t = crate::movies::tmdb(&st);
+    let (info, eps) = match details_for_add(&st, tvdb_id, tmdb_hint, &b).await {
+        Ok(x) => x,
+        Err(e) => return fail(e),
+    };
+    let o = add_options(&b, profile, root, path);
+    match series::add(&st.db, &info, eps, &o) {
+        Ok(s) => {
+            tracing::info!("Added the series {} through the Sonarr API", s.info.title);
+            if b["addOptions"]["searchForMissingEpisodes"].as_bool() == Some(true) {
+                crate::downloads::spawn_search(&st, crate::downloads::Search::Series(s.id, None));
+            }
+            match series::episodes(&st.db, s.id) {
+                Ok(eps) => with_status(201, resource(&s, &eps, Utc::now())),
+                Err(e) => fail(e),
+            }
+        }
+        Err(e) if e.status.as_u16() == 409 => {
+            validation("TvdbId", "This series has already been added", json!(tvdb_id), "SeriesExistsValidator")
+        }
+        Err(e) => fail(e),
+    }
+}
+
+/// A series' details and episodes for adding it by TheTVDB id (TMDB's, or `tmdb_hint` when the caller knows it).
+/// When TMDB can't be asked, the details in the Sonarr body `b` are kept and the next refresh fills in the rest.
+pub async fn details_for_add(
+    st: &AppState,
+    tvdb_id: i64,
+    tmdb_hint: i64,
+    b: &Value,
+) -> kit_server_core::Result<(SeriesInfo, Vec<crate::tmdb::EpisodeInfo>)> {
+    let t = crate::movies::tmdb(st);
     let tmdb_id = if tmdb_hint > 0 { Ok(Some(tmdb_hint)) } else { t.find_tvdb(tvdb_id).await };
     let fetched = match tmdb_id {
         Ok(Some(id)) => match t.series(id).await {
@@ -416,7 +447,7 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
     };
     let (mut info, eps) = match fetched {
         Ok(x) => x,
-        Err(e) if e.status.as_u16() == 404 || b["title"].as_str().is_none_or(str::is_empty) => return fail(e),
+        Err(e) if e.status.as_u16() == 404 || b["title"].as_str().is_none_or(str::is_empty) => return Err(e),
         Err(e) => {
             // TMDB can't be asked: keep what the caller sent, the next refresh fills in the episodes
             tracing::warn!("TMDB couldn't be asked about TheTVDB {tvdb_id} ({}); adding it with the details sent", e.detail);
@@ -435,8 +466,13 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
     if info.tvdb_id == 0 {
         info.tvdb_id = tvdb_id;
     }
+    Ok((info, eps))
+}
+
+/// The add options from a Sonarr series body, with the profile, root folder and folder already checked.
+pub fn add_options(b: &Value, profile: i64, root: String, path: Option<String>) -> AddOptions {
     let monitor = b["addOptions"]["monitor"].as_str().filter(|m| series::MONITOR.contains(m)).unwrap_or("all").to_string();
-    let o = AddOptions {
+    AddOptions {
         quality_profile_id: profile,
         root_folder: root,
         path,
@@ -447,22 +483,6 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
         tags: ids(&b["tags"]),
         // Seerr names the seasons it wants; Sonarr follows them unless a monitor choice is given
         seasons: if b["addOptions"]["monitor"].is_string() { None } else { body_seasons(&b["seasons"]) },
-    };
-    match series::add(&st.db, &info, eps, &o) {
-        Ok(s) => {
-            tracing::info!("Added the series {} through the Sonarr API", s.info.title);
-            if b["addOptions"]["searchForMissingEpisodes"].as_bool() == Some(true) {
-                crate::downloads::spawn_search(&st, crate::downloads::Search::Series(s.id, None));
-            }
-            match series::episodes(&st.db, s.id) {
-                Ok(eps) => with_status(201, resource(&s, &eps, Utc::now())),
-                Err(e) => fail(e),
-            }
-        }
-        Err(e) if e.status.as_u16() == 409 => {
-            validation("TvdbId", "This series has already been added", json!(tvdb_id), "SeriesExistsValidator")
-        }
-        Err(e) => fail(e),
     }
 }
 

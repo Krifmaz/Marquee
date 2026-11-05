@@ -767,6 +767,35 @@ async fn import_checked(st: &AppState, id: i64, check: bool) -> Result<()> {
     }
 }
 
+/// Records a movie file that is already in the library (moved in from Radarr) without touching it; its id.
+pub fn keep_movie_file(db: &SqliteDb, movie_id: i64, path: &str, size: i64, quality: &str, group: &str, scene: &str) -> Result<i64> {
+    let fid = db.execute(
+        "INSERT INTO movie_files (movie_id, path, size, quality, release_group, scene_name, hardlinked, added) VALUES (?,?,?,?,?,?,?,?)",
+        p![movie_id, path, size, quality, group, scene, false, now_iso()],
+    )?;
+    db.execute("UPDATE movies SET movie_file_id=? WHERE id=?", p![fid, movie_id])?;
+    Ok(fid)
+}
+
+/// Records an episode file that is already in the library (moved in from Sonarr) without touching it; its id.
+/// The episodes are pointed at it by the caller.
+#[allow(clippy::too_many_arguments)]
+pub fn keep_episode_file(
+    db: &SqliteDb,
+    series_id: i64,
+    season: i64,
+    path: &str,
+    size: i64,
+    quality: &str,
+    group: &str,
+    scene: &str,
+) -> Result<i64> {
+    db.execute(
+        "INSERT INTO episode_files (series_id, season, path, size, quality, release_group, scene_name, hardlinked, added) VALUES (?,?,?,?,?,?,?,?,?)",
+        p![series_id, season, path, size, quality, group, scene, false, now_iso()],
+    )
+}
+
 /// An I/O error in words.
 fn io(what: &str, e: std::io::Error) -> kit_server_core::Error {
     err(500, format!("{what}: {e}"))

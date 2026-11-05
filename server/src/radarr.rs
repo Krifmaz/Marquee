@@ -247,7 +247,7 @@ async fn movie_one(State(st): State<AppState>, Path(id): Path<i64>) -> Response 
 
 /// A movie's details for an add: TMDB's, or what the caller sent when TMDB can't be asked (no key, or
 /// unreachable), so an add still works.
-async fn details_for_add(st: &AppState, tmdb_id: i64, body: &Value) -> Result<MovieInfo> {
+pub async fn details_for_add(st: &AppState, tmdb_id: i64, body: &Value) -> Result<MovieInfo> {
     match movies::tmdb(st).movie(tmdb_id).await {
         Ok(info) => Ok(info),
         Err(e) if e.status.as_u16() == 404 => Err(e),
@@ -316,14 +316,7 @@ async fn movie_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response
         Ok(i) => i,
         Err(e) => return fail(e),
     };
-    let o = AddOptions {
-        quality_profile_id: profile,
-        root_folder: root,
-        path,
-        monitored: b["monitored"].as_bool().unwrap_or(true),
-        minimum_availability: b["minimumAvailability"].as_str().filter(|a| movies::AVAILABILITY.contains(a)).unwrap_or("released").into(),
-        tags: tag_ids(&b["tags"]),
-    };
+    let o = add_options(&b, profile, root, path);
     match movies::add(&st.db, &info, &o) {
         Ok(m) => {
             tracing::info!("Added the movie {} ({}) through the Radarr API", m.info.title, m.info.year);
@@ -333,6 +326,18 @@ async fn movie_add(State(st): State<AppState>, Json(b): Json<Value>) -> Response
             with_status(201, resource(&m, Utc::now()))
         }
         Err(e) => fail(e),
+    }
+}
+
+/// The add options from a Radarr movie body, with the profile and root folder already checked.
+pub fn add_options(b: &Value, profile: i64, root: String, path: Option<String>) -> AddOptions {
+    AddOptions {
+        quality_profile_id: profile,
+        root_folder: root,
+        path,
+        monitored: b["monitored"].as_bool().unwrap_or(true),
+        minimum_availability: b["minimumAvailability"].as_str().filter(|a| movies::AVAILABILITY.contains(a)).unwrap_or("released").into(),
+        tags: tag_ids(&b["tags"]),
     }
 }
 
