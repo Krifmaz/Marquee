@@ -134,3 +134,39 @@ async fn api_paths_match_in_any_case() {
     let (s, _) = call(&app, "GET", "/sonarr/api/v3/customFilter/999", None).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "ids still reach the route");
 }
+
+/// One request with the key in the query, as calendar apps send it; the status and the text body.
+async fn text(app: &Router, path: &str) -> (StatusCode, String) {
+    let r = app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+    let s = r.status();
+    let bytes = axum::body::to_bytes(r.into_body(), 1 << 24).await.unwrap();
+    (s, String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[tokio::test]
+async fn calendar_feeds_are_ical() {
+    let app = server("feed").await;
+    let (s, _) = text(&app, "/sonarr/feed/v3/calendar/Sonarr.ics").await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED, "the key is needed");
+    let (s, body) = text(&app, &format!("/sonarr/feed/v3/calendar/Sonarr.ics?apikey={KEY}")).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(body.starts_with("BEGIN:VCALENDAR\r\nPRODID:-//sonarr.tv//Sonarr//EN\r\n"), "{body}");
+    assert!(body.contains("X-WR-CALNAME:Sonarr TV Schedule\r\n") && body.ends_with("END:VCALENDAR\r\n"));
+
+    let root = std::env::temp_dir().join(format!("marquee-arr-ui-feed-movies-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    call(&app, "POST", "/radarr/api/v3/rootfolder", Some(json!({ "path": root }))).await;
+    let soon = (chrono::Utc::now() + chrono::Duration::days(3)).format("%Y-%m-%d").to_string();
+    let body = json!({ "title": "Feed Movie", "tmdbId": 999001, "year": 2026, "qualityProfileId": 4, "rootFolderPath": root,
+        "monitored": true, "minimumAvailability": "released", "tags": [], "inCinemas": format!("{soon}T00:00:00Z"), "addOptions": { "searchForMovie": false } });
+    let (s, v) = call(&app, "POST", "/radarr/api/v3/movie", Some(body)).await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let id = v["id"].as_i64().unwrap();
+    let (_, body) = text(&app, &format!("/radarr/feed/v3/calendar/Radarr.ics?apikey={KEY}")).await;
+    assert!(body.contains("PRODID:-//radarr.video//Radarr//EN\r\n"), "{body}");
+    assert!(body.contains(&format!("UID:Radarr_movie_{id}_cinemas\r\n")), "{body}");
+    assert!(body.contains("SUMMARY:Feed Movie (Theatrical Release)\r\n"), "{body}");
+    assert!(body.contains(&format!("DTSTART;VALUE=DATE:{}\r\n", soon.replace('-', ""))), "{body}");
+    let (_, only_digital) = text(&app, &format!("/radarr/feed/v3/calendar/Radarr.ics?apikey={KEY}&releaseTypes=digitalRelease")).await;
+    assert!(!only_digital.contains("_cinemas"), "release types filter");
+}
