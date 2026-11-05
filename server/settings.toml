@@ -143,17 +143,6 @@ label = "Anime mapping list address"
 help = "Where the community anime mapping list is fetched from each day; empty for Fribb/anime-lists, off for never."
 type = "text"
 
-[keys.anilist_url]
-env = "MARQUEE_ANILIST_URL"
-default = ""
-label = "AniList address"
-type = "text"
-
-# ---- Track blocks (docs/TRACKS.md). Each track adds its own sections, groups and keys only inside its own block,
-# ---- so two tracks never change the same lines. Core keeps everything above.
-
-# ---- TRaSH track: keys start with trash_ ----
-
 [sections.trash]
 title = "TRaSH Guides"
 

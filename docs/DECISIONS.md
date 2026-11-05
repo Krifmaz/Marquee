@@ -63,3 +63,6 @@ One line per call that was not obvious.
 - 2026-11-05 · Mail (SMTP) is in Marquee (`server/src/mail.rs`, lettre) because kit v0.2.1 has none; it is generic and should move to the kit. The mail server `file` writes mails to `<data>/outbox/` for tests.
 - 2026-11-05 · "Available" comes from the TMDB ids Jellyfin and Plex report, read every 30 minutes and a minute after each import's scan, kept in `media_available`.
 - 2026-11-05 · Password reset links work once for an hour, are kept only as their SHA-256, and the forgot-password answer never says whether an account exists.
+- 2026-11-05 · An anime file is checked against the newest request for its series; a series nobody requested with a language choice isn't checked. Dubs are taken to be English, since requests don't ask for the dub's language.
+- 2026-11-05 · Anime language choices live in one place, the requests' `request_prefs`; `/api/anime/prefs` reads and writes the same row, and the first release's `anime_prefs` rows are copied there before that table is dropped. Core's AniList client reads the requests' `request_anilist_url`, so there is one AniList setting.
+- 2026-11-05 · A release turned down (wrong tracks, or Reject in the Review queue) is remembered by its title and never grabbed again; Lantern is asked to drop it with its files.

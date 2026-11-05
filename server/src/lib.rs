@@ -142,10 +142,10 @@ impl AppState {
         series::migrate(&db)?;
         arr::migrate(&db)?;
         downloads::migrate(&db)?;
-        anime::migrate(&db)?;
         // the tracks' own tables (docs/TRACKS.md)
         trash::migrate(&db)?;
         requests::migrate(&db)?;
+        anime::migrate(&db)?;
         media_servers::migrate(&db)?;
         let kit = |e: kit_server_core::Error| anyhow::anyhow!("The kit's tables can't be made: {}", e.detail);
         let prefs = SqlitePrefs::new(db.clone()).map_err(kit)?;

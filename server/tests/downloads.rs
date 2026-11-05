@@ -24,6 +24,8 @@ struct Hub {
     imported: Vec<String>,
     /// the search queries
     searches: Vec<HashMap<String, String>>,
+    /// Lantern ids Marquee asked to drop
+    removed: Vec<String>,
 }
 
 /// A release as Lantern's Prowlarr API sends it.
@@ -36,7 +38,7 @@ fn rel(title: &str, gb: f64, seeders: i64) -> Value {
 /// A Lantern stand-in on a free port; its address and what it was asked.
 async fn fake_lantern() -> (String, Arc<Mutex<Hub>>) {
     let hub = Arc::new(Mutex::new(Hub::default()));
-    let (h1, h2, h3, h4) = (hub.clone(), hub.clone(), hub.clone(), hub.clone());
+    let (h1, h2, h3, h4, h5) = (hub.clone(), hub.clone(), hub.clone(), hub.clone(), hub.clone());
     let app = Router::new()
         .route(
             "/api/v1/search",
@@ -86,6 +88,16 @@ async fn fake_lantern() -> (String, Arc<Mutex<Hub>>) {
                     Json(json!({ "ok": true }))
                 }
             }),
+        )
+        .route(
+            "/api/v1/hub/grabs/{id}",
+            axum::routing::delete(move |Path(id): Path<String>| {
+                let hub = h5.clone();
+                async move {
+                    hub.lock().unwrap().removed.push(id);
+                    Json(json!({ "ok": true }))
+                }
+            }),
         );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -128,6 +140,12 @@ async fn fake_tmdb() -> String {
 
 /// A fresh server set up with the stand-in Lantern and TMDB, and movie and TV folders.
 async fn server(name: &str) -> (Router, std::path::PathBuf, Arc<Mutex<Hub>>) {
+    let (app, dir, hub, _) = server_with(name, "research").await;
+    (app, dir, hub)
+}
+
+/// The same, with the anime mismatch setting, and the state for looking into the database.
+async fn server_with(name: &str, mismatch: &'static str) -> (Router, std::path::PathBuf, Arc<Mutex<Hub>>, server::AppState) {
     let dir = std::env::temp_dir().join(format!("marquee-dl-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let web = dir.join("static");
@@ -145,12 +163,14 @@ async fn server(name: &str) -> (Router, std::path::PathBuf, Arc<Mutex<Hub>>) {
         "MARQUEE_LANTERN_URL" => Some(lantern.clone()),
         "MARQUEE_LANTERN_API_KEY" => Some("lantern-key".into()),
         "MARQUEE_TRASH_AUTO" => Some("false".into()),
+        "MARQUEE_ANIME_MISMATCH" => Some(mismatch.into()),
+        "MARQUEE_ANIME_LIST_URL" => Some("off".into()),
         _ => None,
     })
     .await
     .unwrap();
     server::auth::ensure_owner(&st, None, Some("correct horse battery".into())).unwrap();
-    (server::app(st), dir, hub)
+    (server::app(st.clone()), dir, hub, st)
 }
 
 /// One request with the API key; the status and the JSON body.
@@ -331,4 +351,115 @@ async fn without_lantern_a_search_says_what_to_do() {
         (s, v["detail"].as_str()),
         (StatusCode::BAD_REQUEST, Some("Add Lantern's address and API key in Settings → Connections first"))
     );
+}
+
+/// Adds The Bear as anime, someone's request for it with `audio` and `subtitles`, and grabs season 1 as a pack
+/// whose files (from tests/data/dual_sub.mkv) have Japanese and English audio and English subtitles. The series
+/// id, and Lantern finishes the download and Marquee is asked to sync.
+async fn anime_season(app: &Router, dir: &std::path::Path, hub: &Arc<Mutex<Hub>>, st: &server::AppState, audio: &str, subs: &str) -> i64 {
+    use kit_server_core::{p, Db};
+    let root = dir.join("media/tv").to_string_lossy().to_string();
+    call(app, "POST", "/sonarr/api/v3/rootfolder", Some(json!({ "path": root }))).await;
+    let (_, profiles) = call(app, "GET", "/sonarr/api/v3/qualityprofile", None).await;
+    let hd = profiles.as_array().unwrap().iter().find(|p| p["name"] == "HD-1080p").unwrap()["id"].clone();
+    let (s, series) = call(
+        app,
+        "POST",
+        "/sonarr/api/v3/series",
+        Some(json!({ "tvdbId": 403245, "title": "The Bear", "qualityProfileId": hd, "seriesType": "anime",
+        "rootFolderPath": root, "seasonFolder": true, "addOptions": { "monitor": "all" } })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{series}");
+    let id = series["id"].as_i64().unwrap();
+    let now = "2026-11-05T00:00:00Z";
+    let media = st
+        .db
+        .execute(
+            "INSERT INTO request_media (kind, tmdb_id, title, anime, created_at, updated_at) VALUES ('tv', 136315, 'The Bear', 1, ?, ?)",
+            p![now, now],
+        )
+        .unwrap();
+    st.db
+        .execute(
+            "INSERT INTO requests (media_id, kind, status, requested_by, anime_audio, anime_subtitles, created_at, updated_at) VALUES (?, 'tv', 2, 1, ?, ?, ?, ?)",
+            p![media, audio, subs, now, now],
+        )
+        .unwrap();
+    let (s, out) = call(app, "POST", &format!("/api/series/{id}/search"), Some(json!({ "season": 1 }))).await;
+    assert_eq!(
+        (s, out["grabbed"][0]["title"].as_str()),
+        (StatusCode::OK, Some("The.Bear.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb")),
+        "{out}"
+    );
+    let done = dir.join("downloads/The.Bear.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb");
+    std::fs::create_dir_all(&done).unwrap();
+    let sample = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/dual_sub.mkv");
+    for e in ["S01E01", "S01E02"] {
+        std::fs::copy(&sample, done.join(format!("The.Bear.{e}.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb.mkv"))).unwrap();
+    }
+    {
+        let mut h = hub.lock().unwrap();
+        h.grabs[0]["status"] = json!("completed");
+        h.grabs[0]["progress"] = json!(1.0);
+        h.grabs[0]["files"] = json!([done.to_string_lossy()]);
+    }
+    let (s, v) = call(app, "POST", "/api/lantern/sync", None).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    id
+}
+
+/// Whether ffprobe can be run here (the check needs it; without it anime files are imported unchecked).
+fn has_ffprobe() -> bool {
+    std::process::Command::new("ffprobe").arg("-version").output().is_ok()
+}
+
+#[tokio::test]
+async fn an_anime_download_with_the_wrong_tracks_is_turned_down_and_searched_again() {
+    if !has_ffprobe() {
+        eprintln!("ffprobe isn't installed; the anime check can't be tested here");
+        return;
+    }
+    let (app, dir, hub, st) = server_with("anime-research", "research").await;
+    anime_season(&app, &dir, &hub, &st, "sub", "de").await;
+    let (_, dl) = call(&app, "GET", "/api/downloads", None).await;
+    assert_eq!(dl[0]["status"], "turnedDown", "{dl}");
+    assert!(dl[0]["message"].as_str().unwrap().contains("It has no German subtitles"), "{dl}");
+    assert!(!dir.join("media/tv/The Bear/Season 1").join("The Bear - S01E01 - System WEBDL-1080p.mkv").exists(), "not imported");
+    assert_eq!(hub.lock().unwrap().removed, vec!["g1"], "Lantern drops it");
+    for _ in 0..50 {
+        if hub.lock().unwrap().searches.len() > 1 {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let titles: Vec<String> = hub.lock().unwrap().grabs.iter().map(|g| g["title"].as_str().unwrap_or("").to_string()).collect();
+    assert_eq!(
+        titles.iter().filter(|t| t.as_str() == "The.Bear.S01.1080p.DSNP.WEB-DL.DDP5.1.H.264-NTb").count(),
+        1,
+        "never grabbed again: {titles:?}"
+    );
+    assert!(hub.lock().unwrap().searches.len() > 1, "searched again");
+}
+
+#[tokio::test]
+async fn an_anime_download_with_the_wrong_tracks_waits_in_review_until_kept() {
+    if !has_ffprobe() {
+        eprintln!("ffprobe isn't installed; the anime check can't be tested here");
+        return;
+    }
+    let (app, dir, hub, st) = server_with("anime-review", "review").await;
+    anime_season(&app, &dir, &hub, &st, "sub", "de").await;
+    let (_, dl) = call(&app, "GET", "/api/downloads", None).await;
+    assert_eq!(dl[0]["status"], "review", "{dl}");
+    let (_, list) = call(&app, "GET", "/api/anime/review", None).await;
+    assert_eq!(list.as_array().map(Vec::len), Some(1), "{list}");
+    let rid = list[0]["id"].as_i64().unwrap();
+    let (s, v) = call(&app, "POST", &format!("/api/anime/review/{rid}/keep"), None).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let season = dir.join("media/tv/The Bear/Season 1");
+    assert!(season.join("The Bear - S01E01 - System WEBDL-1080p.mkv").exists(), "kept files are imported");
+    let (_, dl) = call(&app, "GET", "/api/downloads", None).await;
+    assert_eq!(dl[0]["status"], "imported", "{dl}");
 }

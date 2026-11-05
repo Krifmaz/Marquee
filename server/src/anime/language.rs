@@ -29,6 +29,15 @@ impl Audio {
         }
     }
 
+    /// The word for it: `dub`, `dual` or `sub`.
+    pub fn word(self) -> &'static str {
+        match self {
+            Audio::Dub => "dub",
+            Audio::Dual => "dual",
+            Audio::Sub => "sub",
+        }
+    }
+
     /// In words.
     pub fn label(self) -> &'static str {
         match self {
@@ -100,6 +109,24 @@ pub fn normalize(code: &str) -> String {
         "ko" | "korean" => "kor",
         "" => "und",
         other => return other.to_string(),
+    }
+    .to_string()
+}
+
+/// A language as two letters (ISO 639-1, `en`), the way the request pages keep it; `en` when unknown.
+pub fn two_letter(code: &str) -> String {
+    match normalize(code).as_str() {
+        "eng" => "en",
+        "jpn" => "ja",
+        "deu" => "de",
+        "fra" => "fr",
+        "spa" => "es",
+        "ita" => "it",
+        "por" => "pt",
+        "zho" => "zh",
+        "kor" => "ko",
+        c if c.len() == 2 => return c.to_string(),
+        _ => "en",
     }
     .to_string()
 }

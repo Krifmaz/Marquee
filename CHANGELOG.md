@@ -3,12 +3,13 @@
 ## Unreleased
 
 ### Added
+- Anime files are checked when they finish: when the audio or subtitles aren't what the request asked for, Marquee turns the release down for good and searches again, or puts it in the Review queue (Settings → Anime). Keep imports it; Reject turns it down. The language choice and the AniList address are now the same ones the request pages use.
 - Plex and Jellyfin, and everything jfa-go did: Settings → Media servers (Jellyfin, Plex, sign-up and mail), Media access (whether each server answers, Scan now, each account's Jellyfin user and Plex share with its libraries and end date, linking existing users), Invites (one-time or multi-use links with an end date, role, servers and libraries; sent by mail), a public sign-up page, password reset by mail, accounts that end on a date with a reminder first, sign-in with Plex or Jellyfin, and "available" from either server. Accounts are made only in Marquee; Jellyfin and Plex follow every change (made, password, turned off, removed).
+
+## 0.1.0
 
 ### Changed
 - First release, v0.1.0: the release hold is lifted, so every merge to main is a release from now on.
-
-## 0.1.0
 
 ### Added
 - TRaSH Guides by default: on the first start Marquee adds TRaSH's quality profiles, custom formats and scores, quality sizes and naming for movies, TV and anime (HD Bluray + WEB, WEB-1080p, [Anime] Remux-1080p, Jellyfin naming) and makes them the default. A short wizard on the new Quality page picks 1080p/2160p and WEB/Blu-ray/Remux and the media server. Every 24 hours it looks for TRaSH updates on GitHub, updates what you haven't changed, lists what changed, and asks before touching anything you edited. Custom format scores now choose between releases, and the Radarr and Sonarr APIs list the custom formats and TRaSH naming.

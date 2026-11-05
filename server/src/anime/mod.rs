@@ -4,12 +4,12 @@
 //!
 //! ```text
 //! GET  /api/anime/prefs                 → my language choice {audio, dub_language, subtitles, words} (signed in)
-//! PUT  /api/anime/prefs                 {audio, dub_language?, subtitles?} → it (signed in)
+//! PUT  /api/anime/prefs                 {audio, subtitles?} → it (signed in; the same choice as the request pages)
 //! GET  /api/anime/lookup?term=…         → AniList's matches with TheTVDB/TMDB ids and season (signed in)
 //! GET  /api/anime/{anilist}/seasons     → the show's seasons as separate entries, each mapped (signed in)
 //! GET  /api/anime/review                → downloads waiting for a look, with the reason (admins)
-//! POST /api/anime/review/{id}/keep      → keeps the file as it is (admins)
-//! POST /api/anime/review/{id}/reject    → turns it down; the episodes are searched again (admins)
+//! POST /api/anime/review/{id}/keep      → imports the file as it is (admins)
+//! POST /api/anime/review/{id}/reject    → turns the release down for good; the episodes are searched again (admins)
 //! POST /api/anime/mapping/refresh       → {entries} fetches the mapping list now (admins)
 //! ```
 
@@ -31,13 +31,7 @@ use serde_json::{json, Value};
 pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
     mapping::migrate(db)?;
     db.execute_batch(
-        "CREATE TABLE IF NOT EXISTS anime_prefs (
-            user_id INTEGER PRIMARY KEY,
-            audio TEXT NOT NULL DEFAULT 'sub',
-            dub_language TEXT NOT NULL DEFAULT 'eng',
-            subtitles TEXT NOT NULL DEFAULT 'eng'
-        );
-        CREATE TABLE IF NOT EXISTS anime_review (
+        "CREATE TABLE IF NOT EXISTS anime_review (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             download_id INTEGER NOT NULL,
             series_id INTEGER,
@@ -49,20 +43,53 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             added TEXT NOT NULL
         );",
     )
-    .map_err(|e| anyhow::anyhow!("The anime tables can't be made: {}", e.detail))
+    .map_err(|e| anyhow::anyhow!("The anime tables can't be made: {}", e.detail))?;
+    move_old_prefs(db).map_err(|e| anyhow::anyhow!("The old anime language choices can't be moved: {}", e.detail))
 }
 
-/// Someone's language choice (the default when they made none).
+/// Moves the language choices of the first anime release (table `anime_prefs`) into the requests' table
+/// (`request_prefs`), where the request pages keep them, and drops the old table. Nothing is lost: a choice made
+/// on the request pages wins over the old one.
+fn move_old_prefs(db: &SqliteDb) -> Result<()> {
+    if db.one("SELECT name FROM sqlite_master WHERE type='table' AND name='anime_prefs'", p![])?.is_none() {
+        return Ok(());
+    }
+    for r in db.query("SELECT * FROM anime_prefs", p![])? {
+        db.execute(
+            "INSERT OR IGNORE INTO request_prefs (user_id, anime_audio, anime_subtitles) VALUES (?,?,?)",
+            p![r.i("user_id"), r.s("audio"), language::two_letter(&r.s("subtitles"))],
+        )?;
+    }
+    db.execute_batch("DROP TABLE anime_prefs")
+}
+
+/// A choice from the requests' words: audio `dub`, `dual` or `sub`, and the subtitles' language. Dubs are in
+/// English for now (requests don't ask for the dub's language).
+fn choice_of(audio: &str, subtitles: &str) -> Choice {
+    Choice { audio: Audio::parse(audio).unwrap_or(Audio::Dual), dub_language: "eng".into(), subtitles: language::normalize(subtitles) }
+}
+
+/// Someone's default language choice, kept with their requests (dual audio with English subtitles when they made
+/// none, like the request pages).
 pub fn choice_for(db: &SqliteDb, user_id: i64) -> Choice {
-    db.one("SELECT * FROM anime_prefs WHERE user_id=?", p![user_id])
+    db.one("SELECT anime_audio, anime_subtitles FROM request_prefs WHERE user_id=?", p![user_id])
         .ok()
         .flatten()
-        .map(|r| Choice {
-            audio: Audio::parse(&r.s("audio")).unwrap_or_default(),
-            dub_language: r.s("dub_language"),
-            subtitles: r.s("subtitles"),
-        })
-        .unwrap_or_default()
+        .map(|r| choice_of(&r.s("anime_audio"), &r.s("anime_subtitles")))
+        .unwrap_or_else(|| choice_of("dual", "en"))
+}
+
+/// The language the newest request for a series (by its TMDB id) asked for; `None` when nobody requested it with
+/// a language choice, so its files aren't checked.
+pub fn choice_for_series(db: &SqliteDb, tmdb_id: i64) -> Option<Choice> {
+    db.one(
+        "SELECT r.anime_audio, r.anime_subtitles FROM requests r JOIN request_media m ON m.id=r.media_id
+         WHERE m.kind='tv' AND m.tmdb_id=? AND r.anime_audio!='' ORDER BY r.id DESC LIMIT 1",
+        p![tmdb_id],
+    )
+    .ok()
+    .flatten()
+    .map(|r| choice_of(&r.s("anime_audio"), &r.s("anime_subtitles")))
 }
 
 /// A choice for the web app and the requests API.
@@ -113,9 +140,7 @@ pub fn send_to_review(
 pub struct Prefs {
     /// `dub`, `dual` or `sub`
     pub audio: String,
-    /// the dub's language (ISO 639)
-    pub dub_language: Option<String>,
-    /// the subtitles' language, "" for none
+    /// the subtitles' language (ISO 639: `en` or `eng`); unchanged when left out
     pub subtitles: Option<String>,
 }
 
@@ -124,22 +149,13 @@ async fn prefs_get(State(st): State<AppState>, me: Me) -> Json<Value> {
     Json(choice_json(&choice_for(&st.db, me.account.id)))
 }
 
-/// `PUT /api/anime/prefs`.
+/// `PUT /api/anime/prefs`: the same choice the request pages set.
 async fn prefs_put(State(st): State<AppState>, me: Me, Json(b): Json<Prefs>) -> Result<Json<Value>> {
     let audio = Audio::parse(&b.audio).ok_or_else(|| err(400, "Pick Dub only, Dual audio or Sub only"))?;
     let old = choice_for(&st.db, me.account.id);
-    let c = Choice {
-        audio,
-        dub_language: b.dub_language.map(|l| language::normalize(&l)).unwrap_or(old.dub_language),
-        subtitles: b.subtitles.map(|l| if l.trim().is_empty() { String::new() } else { language::normalize(&l) }).unwrap_or(old.subtitles),
-    };
-    let audio_word = serde_json::to_value(c.audio).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-    st.db.execute(
-        "INSERT INTO anime_prefs (user_id, audio, dub_language, subtitles) VALUES (?,?,?,?)
-         ON CONFLICT(user_id) DO UPDATE SET audio=excluded.audio, dub_language=excluded.dub_language, subtitles=excluded.subtitles",
-        p![me.account.id, audio_word, c.dub_language, c.subtitles],
-    )?;
-    Ok(Json(choice_json(&c)))
+    let subs = language::two_letter(&b.subtitles.unwrap_or(old.subtitles));
+    crate::requests::set_anime_prefs(&st.db, me.account.id, audio.word(), &subs)?;
+    Ok(Json(choice_json(&choice_for(&st.db, me.account.id))))
 }
 
 /// An AniList entry with its mapping and, when its series is added, Marquee's series id.
@@ -202,10 +218,16 @@ async fn review_decide(State(st): State<AppState>, me: Me, Path((id, what)): Pat
         _ => return Err(err(404, "Say keep or reject")),
     };
     st.db.execute("UPDATE anime_review SET state=? WHERE id=?", p![state, id])?;
-    if state == "rejected" {
-        if let Some(sid) = r.get("series_id").and_then(Value::as_i64) {
-            crate::downloads::spawn_search(&st, crate::downloads::Search::Series(sid, None));
+    let download = crate::downloads::find(&st.db, r.i("download_id"))?;
+    match (state, download) {
+        ("kept", Some(d)) => crate::downloads::import_kept(&st, d.id).await?,
+        ("rejected", Some(d)) => crate::downloads::reject(&st, &d, &format!("rejected in the Review queue ({})", r.s("reason"))).await?,
+        ("rejected", None) => {
+            if let Some(sid) = r.get("series_id").and_then(Value::as_i64) {
+                crate::downloads::spawn_search(&st, crate::downloads::Search::Series(sid, None));
+            }
         }
+        _ => {}
     }
     Ok(Json(json!({ "ok": true, "state": state })))
 }
