@@ -37,6 +37,7 @@ ROUTE_FILES = {
         ("server/src/requests/discover.rs", "/api/v1"),
         ("server/src/requests/sliders.rs", "/api/v1"),
         ("server/src/requests/blocklist.rs", "/api/v1"),
+        ("server/src/requests/issues.rs", "/api/v1"),
     ],
 }
 # Routes served outside the nested v3 router (path as upstream spells it -> Marquee path).

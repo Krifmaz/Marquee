@@ -768,6 +768,45 @@ async fn blocklist_follows_seerr_routes_blocklist_ts() {
 }
 
 #[tokio::test]
+async fn issues_follow_seerr_routes_issue_ts() {
+    let (app, _) = server("issues").await;
+    let sam = id_of(&app, "sam").await;
+    let (_, asked) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    let media_id = asked["media"]["id"].as_i64().expect("the request carries its media");
+    let body = json!({ "mediaId": media_id, "issueType": 2, "message": "No sound after an hour" });
+    let (s, _) = call(&app, "POST", "/issue", Some(sam), Some(body.clone())).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "Seerr's default permissions don't include reporting issues");
+    let (s, e) = call(&app, "POST", "/issue", None, Some(json!({ "mediaId": 9999, "issueType": 2, "message": "x" }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Media does not exist.")));
+    let (s, issue) = call(&app, "POST", "/issue", None, Some(body)).await;
+    assert_eq!(s, StatusCode::CREATED, "{issue}");
+    let id = issue["id"].as_i64().unwrap();
+    assert_eq!((issue["status"].as_i64(), issue["media"]["tmdbId"].as_i64()), (Some(1), Some(603)));
+    assert_eq!(issue["comments"][0]["message"], "No sound after an hour");
+    let (_, issue) = call(&app, "POST", &format!("/issue/{id}/comment"), None, Some(json!({ "message": "Fixed the file" }))).await;
+    assert_eq!(issue["comments"].as_array().unwrap().len(), 2);
+    let (s, e) = call(&app, "POST", &format!("/issue/{id}/closed"), None, None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("You must provide a valid status")));
+    let (_, issue) = call(&app, "POST", &format!("/issue/{id}/resolved"), None, None).await;
+    assert_eq!((issue["status"].as_i64(), issue["modifiedBy"]["id"].as_i64()), (Some(2), Some(1)));
+    let (_, n) = call(&app, "GET", "/issue/count", Some(sam), None).await;
+    assert_eq!(n, json!({ "total": 1, "video": 0, "audio": 1, "subtitles": 0, "others": 0, "open": 0, "closed": 1 }));
+    let (_, page) = call(&app, "GET", "/issue?filter=open", None, None).await;
+    assert_eq!(page["pageInfo"]["results"], 0);
+    let (_, page) = call(&app, "GET", "/issue?filter=resolved&take=5", None, None).await;
+    assert_eq!((page["pageInfo"]["results"].as_i64(), page["pageInfo"]["pageSize"].as_i64()), (Some(1), Some(5)));
+    let cid = issue["comments"][1]["id"].as_i64().unwrap();
+    let (_, c) = call(&app, "PUT", &format!("/issueComment/{cid}"), None, Some(json!({ "message": "Replaced the file" }))).await;
+    assert_eq!(c["message"], "Replaced the file");
+    assert_eq!(call(&app, "DELETE", &format!("/issueComment/{cid}"), None, None).await.0, StatusCode::NO_CONTENT);
+    let (s, e) = call(&app, "GET", &format!("/issueComment/{cid}"), None, None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Issue comment not found.")));
+    assert_eq!(call(&app, "DELETE", &format!("/issue/{id}"), None, None).await.0, StatusCode::NO_CONTENT);
+    let (s, e) = call(&app, "GET", &format!("/issue/{id}"), None, None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Issue not found.")));
+}
+
+#[tokio::test]
 async fn anime_requests_carry_the_language_choice_and_anilist_seasons() {
     let (app, _) = server("anime").await;
     let sam = id_of(&app, "sam").await;
