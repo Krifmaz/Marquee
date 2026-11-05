@@ -37,6 +37,26 @@ async fn empty_list() -> Json<Value> {
     Json(json!([]))
 }
 
+/// Upstream's `IndexerFlagController`: the release flags indexers can set, as `[{id, name, nameLower}]`. Sonarr lists its
+/// whole `IndexerFlags` enum; Radarr leaves out the ones marked obsolete (`AHD_Internal`, `AHD_UserRelease`).
+pub fn indexer_flags(app: &str) -> Value {
+    let flags: &[(i64, &str)] = if app == "radarr" {
+        &[
+            (1, "G_Freeleech"),
+            (2, "G_Halfleech"),
+            (4, "G_DoubleUpload"),
+            (8, "PTP_Golden"),
+            (16, "PTP_Approved"),
+            (32, "G_Internal"),
+            (128, "G_Scene"),
+            (2048, "Nuked"),
+        ]
+    } else {
+        &[(1, "Freeleech"), (2, "Halfleech"), (4, "DoubleUpload"), (8, "Internal"), (16, "Scene"), (128, "Nuked")]
+    };
+    Value::Array(flags.iter().map(|(id, name)| json!({ "id": id, "name": name, "nameLower": name.to_lowercase() })).collect())
+}
+
 /// The shared routes for `app`, to nest under its `/api/v3`.
 pub fn routes(app: &'static App) -> Router<AppState> {
     Router::new()
