@@ -35,6 +35,7 @@ pub mod mail;
 pub mod media_servers;
 pub mod migrate;
 pub mod movies;
+pub mod parser;
 pub mod quality;
 pub mod radarr;
 pub mod release;

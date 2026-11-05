@@ -178,7 +178,7 @@ type Checked = (String, usize, i64, Vec<String>, Vec<String>);
 /// The checks every release gets: quality allowed, better than the file there is, custom format score, a
 /// sensible size, seeders.
 fn common(w: &Wanted, r: &Release, p: &Parsed, minutes: i64) -> Checked {
-    let quality = release::name_for(w.kind, p.quality_name);
+    let quality = release::name_for(w.kind, p);
     let mut why = Vec::new();
     let rank = match w.profile.rank(&quality) {
         Some((rank, true)) => rank,

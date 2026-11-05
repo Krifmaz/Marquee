@@ -100,7 +100,7 @@ impl Facts {
         Facts {
             title: title.to_string(),
             group: parsed.group.clone(),
-            quality: parsed.quality_name.to_string(),
+            quality: if kind == "movie" { parsed.movie_quality_name } else { parsed.quality_name }.to_string(),
             resolution: parsed.resolution,
             size,
             year: parsed.year,
