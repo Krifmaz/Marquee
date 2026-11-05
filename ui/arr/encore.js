@@ -20,6 +20,10 @@ const bad = 'var(--err)';
 const info = 'var(--info)';
 const accentSoft = 'rgba(var(--accent-rgb), .12)';
 const accentRing = 'rgba(var(--accent-rgb), .35)';
+// filled buttons carry white text, unreadable on the cream accent: the second accent mixed toward the background
+// (the same mix as Seerr's buttons in ui/seerr/patch.mjs)
+const filled = 'color-mix(in srgb, var(--accent-2) 50%, var(--bg))';
+const filledHover = 'color-mix(in srgb, var(--accent-2) 60%, var(--bg))';
 
 module.exports = {
   ...dark,
@@ -29,7 +33,7 @@ module.exports = {
   disabledColor: faint,
   dimColor: faint,
   offWhite: text,
-  primaryColor: accent,
+  primaryColor: filled,
   selectedColor: accent2,
   successColor: ok,
   dangerColor: bad,
@@ -99,10 +103,10 @@ module.exports = {
   defaultHoverBackgroundColor: border,
   defaultHoverBorderColor: faint,
 
-  primaryBackgroundColor: accent,
-  primaryBorderColor: accent,
-  primaryHoverBackgroundColor: accent2,
-  primaryHoverBorderColor: accent2,
+  primaryBackgroundColor: filled,
+  primaryBorderColor: filled,
+  primaryHoverBackgroundColor: filledHover,
+  primaryHoverBorderColor: filledHover,
 
   successBackgroundColor: ok,
   successBorderColor: ok,
@@ -155,7 +159,7 @@ module.exports = {
   alertWarningBackgroundColor: 'rgba(245, 158, 11, .1)',
   alertWarningColor: text,
 
-  sliderAccentColor: accent,
+  sliderAccentColor: accent2,
 
   inputBackgroundColor: bg2,
   inputReadOnlyBackgroundColor: bg,
