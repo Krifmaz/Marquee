@@ -2,6 +2,9 @@
 //! Marquee unchanged: LunaSea, nzb360, Homepage's widget, Requestrr-style bots. The web app uses it too. Answers
 //! have Seerr's shape, checked against real Jellyseerr 2.7.3 answers in `tests/contracts/seerr/`.
 //!
+//! The request routes are ported from Seerr 3.5.1's `server/routes/request.ts` (the commit `UPSTREAM.lock` pins):
+//! the same permission bits, statuses and words.
+//!
 //! Sign-in: the server's API key in `X-Api-Key` (as the owner; with `X-Api-User: <id>` as that account, like
 //! Seerr), an app token, or the web session. Errors are `{"message", "detail"}`: Seerr's name and the kit's.
 //!
@@ -10,8 +13,9 @@
 //! GET    /auth/me
 //! GET    /request?take&skip&filter&sort&sortDirection&requestedBy&mediaType   POST /request (201)
 //! GET    /request/count
-//! GET    /request/{id}   PUT /request/{id} (admins)   DELETE /request/{id} (admins, or your own waiting one)
-//! POST   /request/{id}/approve | /decline | /retry (admins)
+//! GET    /request/{id}   PUT /request/{id} (a waiting one: yours, or any with MANAGE_REQUESTS)
+//! DELETE /request/{id} (MANAGE_REQUESTS, or your own waiting one)
+//! POST   /request/{id}/approve | /decline | /retry (MANAGE_REQUESTS)
 //! GET    /media?take&skip&filter&sort    DELETE /media/{id}    POST /media/{id}/{available|partial|processing|pending|unknown}
 //! GET    /user  /user/{id}  /user/{id}/requests  /user/{id}/quota
 //! GET    /user/{id}/settings/main (POST: limits, admins; anime language, the account itself)
@@ -42,22 +46,63 @@ use serde_json::{json, Value};
 /// The Seerr version Marquee answers as, so clients' version checks pass (Marquee's own is in `commitTag`).
 pub const SEERR_VERSION: &str = "2.7.3";
 
-/// Seerr's permission bits that Marquee's roles map to.
+/// Seerr's permission bits (`server/lib/permissions.ts`); Marquee's roles map to some of them.
 pub mod perm {
     /// everything
     pub const ADMIN: i64 = 2;
+    /// change settings
+    pub const MANAGE_SETTINGS: i64 = 4;
+    /// manage accounts
+    pub const MANAGE_USERS: i64 = 8;
     /// approve and change requests
     pub const MANAGE_REQUESTS: i64 = 16;
     /// ask for movies and TV
     pub const REQUEST: i64 = 32;
+    /// vote (unused by Seerr)
+    pub const VOTE: i64 = 64;
     /// movie and TV requests skip approval
     pub const AUTO_APPROVE: i64 = 128;
     /// movie requests skip approval
     pub const AUTO_APPROVE_MOVIE: i64 = 256;
     /// TV requests skip approval
     pub const AUTO_APPROVE_TV: i64 = 512;
+    /// ask for 4K movies and TV
+    pub const REQUEST_4K: i64 = 1024;
+    /// ask for 4K movies
+    pub const REQUEST_4K_MOVIE: i64 = 2048;
+    /// ask for 4K TV
+    pub const REQUEST_4K_TV: i64 = 4096;
+    /// choose the server, profile, folder and tags of a request
+    pub const REQUEST_ADVANCED: i64 = 8192;
     /// see everybody's requests
     pub const REQUEST_VIEW: i64 = 16384;
+    /// 4K movie and TV requests skip approval
+    pub const AUTO_APPROVE_4K: i64 = 32768;
+    /// 4K movie requests skip approval
+    pub const AUTO_APPROVE_4K_MOVIE: i64 = 65536;
+    /// 4K TV requests skip approval
+    pub const AUTO_APPROVE_4K_TV: i64 = 131072;
+    /// ask for movies
+    pub const REQUEST_MOVIE: i64 = 262144;
+    /// ask for TV
+    pub const REQUEST_TV: i64 = 524288;
+}
+
+/// Seerr's `hasPermission(bits, value, {type: 'or'})` for the account `u`: admins have every bit.
+pub fn has_any(u: &Row, bits: &[i64]) -> bool {
+    let v = permissions(u);
+    v & perm::ADMIN != 0 || bits.iter().any(|b| v & b != 0)
+}
+
+/// Seerr's `hasPermission(bits, value)` (`and`) for the account `u`: admins have every bit.
+pub fn has_all(u: &Row, bits: &[i64]) -> bool {
+    let v = permissions(u);
+    v & perm::ADMIN != 0 || bits.iter().all(|b| v & b != 0)
+}
+
+/// Seerr's answer when an account lacks the permission a route needs (`isAuthenticated(permission)`).
+fn no_access() -> Fail {
+    Fail(err(403, "You do not have permission to access this endpoint"))
 }
 
 /// An error in Seerr's shape and the kit's: `{"message": …, "detail": …}`.
@@ -107,6 +152,15 @@ impl FromRequestParts<AppState> for Seerr {
 }
 
 impl Seerr {
+    /// `Ok` when the account has any of `bits`, else Seerr's 403.
+    fn needs(&self, bits: &[i64]) -> std::result::Result<(), Fail> {
+        if self.0.has(bits) {
+            Ok(())
+        } else {
+            Err(no_access())
+        }
+    }
+
     /// `Ok` for admins, else 403.
     fn admin(&self) -> std::result::Result<(), Fail> {
         if self.0.admin() {
@@ -352,7 +406,7 @@ pub fn paged(items: Vec<Value>, q: &Paging, default_take: usize) -> Value {
     let total = items.len();
     let results: Vec<Value> = items.into_iter().skip(skip).take(take).collect();
     json!({
-        "pageInfo": { "pages": total.div_ceil(take), "pageSize": take, "results": total, "page": skip / take + 1 },
+        "pageInfo": { "pages": total.div_ceil(take), "pageSize": take, "results": total, "page": skip.div_ceil(take) + 1 },
         "results": results,
     })
 }
@@ -435,47 +489,90 @@ pub struct RequestQuery {
     pub media_type: Option<String>,
 }
 
-/// Whether request `r` matches Seerr's `filter`.
-pub fn matches(db: &SqliteDb, r: &Request, filter: &str) -> bool {
-    let available =
-        || media(db, r.media_id).ok().flatten().and_then(|m| availability(db, &m).ok()).is_some_and(|a| super::fulfilled(r, &a));
+/// The request statuses and title statuses Seerr's `filter` keeps (`routes/request.ts`), or `None` for all.
+/// `declined` is Marquee's own (the web app's chip); Seerr has no such filter and keeps everything.
+fn filter_sets(filter: &str) -> (Option<Vec<i64>>, Option<Vec<i64>>) {
+    use super::media_status as m;
+    let not_there = vec![m::UNKNOWN, m::PENDING, m::PROCESSING, m::PARTIALLY_AVAILABLE];
     match filter {
-        "pending" => r.status == status::PENDING,
-        "approved" => r.status == status::APPROVED,
-        "declined" => r.status == status::DECLINED,
-        "failed" => r.status == status::FAILED,
-        "completed" => r.status == status::COMPLETED,
-        "processing" => r.status == status::APPROVED && !available(),
-        "available" => r.status == status::COMPLETED || (r.status == status::APPROVED && available()),
-        "unavailable" => matches!(r.status, status::PENDING | status::APPROVED) && !available(),
-        "deleted" => false,
-        _ => true,
+        "approved" => (Some(vec![status::APPROVED]), None),
+        "processing" => (Some(vec![status::APPROVED]), Some(not_there)),
+        "pending" => (Some(vec![status::PENDING]), None),
+        "unavailable" => (Some(vec![status::PENDING, status::APPROVED]), Some(not_there)),
+        "failed" => (Some(vec![status::FAILED]), None),
+        "completed" => (Some(vec![status::COMPLETED]), None),
+        "available" => (Some(vec![status::COMPLETED]), Some(vec![m::AVAILABLE])),
+        "deleted" => (Some(vec![status::COMPLETED]), Some(vec![m::DELETED])),
+        "declined" => (Some(vec![status::DECLINED]), None),
+        _ => (None, None),
     }
 }
 
-/// The requests `s` may see, filtered and sorted as `q` asks.
-fn requests_for(st: &AppState, s: &Seerr, q: &RequestQuery, only: Option<i64>) -> kit_server_core::Result<Vec<Value>> {
+/// The title status a request is judged by (Marquee has one library, so 4K requests use the same one).
+fn title_status(db: &SqliteDb, r: &Request) -> i64 {
+    media(db, r.media_id).ok().flatten().and_then(|m| availability(db, &m).ok()).map_or(super::media_status::UNKNOWN, |a| a.status)
+}
+
+/// Whether request `r` matches Seerr's `filter`.
+pub fn matches(db: &SqliteDb, r: &Request, filter: &str) -> bool {
+    let (statuses, titles) = filter_sets(filter);
+    statuses.is_none_or(|s| s.contains(&r.status)) && titles.is_none_or(|t| t.contains(&title_status(db, r)))
+}
+
+/// The requests `s` may see, filtered and sorted as `q` asks (Seerr's `GET /request`): accounts without
+/// MANAGE_REQUESTS or REQUEST_VIEW see only their own, and asking for somebody else's is 403.
+fn requests_for(st: &AppState, s: &Seerr, q: &RequestQuery, only: Option<i64>) -> std::result::Result<Vec<Request>, Fail> {
     let filter = q.filter.clone().unwrap_or_else(|| "all".into());
     let kind = q.media_type.clone().unwrap_or_else(|| "all".into());
+    let wanted = only.or(q.requested_by);
+    let sees_all = s.0.has(&[perm::MANAGE_REQUESTS, perm::REQUEST_VIEW]);
+    if !sees_all && wanted.is_some_and(|u| u != s.0.id()) {
+        return Err(Fail(err(403, "You do not have permission to view this user's requests.")));
+    }
+    let who = if sees_all { wanted } else { Some(s.0.id()) };
     let mut list: Vec<Request> = all(&st.db)?
         .into_iter()
-        .filter(|r| s.0.admin() || r.requested_by == s.0.id())
-        .filter(|r| only.or(q.requested_by).is_none_or(|u| r.requested_by == u))
-        .filter(|r| kind == "all" || r.kind == kind)
+        .filter(|r| who.is_none_or(|u| r.requested_by == u))
+        .filter(|r| kind != "movie" && kind != "tv" || r.kind == kind)
         .filter(|r| matches(&st.db, r, &filter))
         .collect();
-    let modified = q.sort.as_deref() == Some("modified");
-    list.sort_by_key(|r| (when(if modified { &r.updated_at } else { &r.created_at }), r.id));
+    if q.sort.as_deref() == Some("modified") {
+        list.sort_by_key(|r| (when(&r.updated_at), r.id));
+    } else {
+        list.sort_by_key(|r| r.id);
+    }
     if q.sort_direction.as_deref() != Some("asc") {
         list.reverse();
     }
-    list.iter().map(|r| request_json(&st.db, r, Some(&s.0))).collect()
+    Ok(list)
+}
+
+/// One request of a list, with Seerr's `profileName` (the quality profile's name, when it has one).
+fn listed(st: &AppState, r: &Request, viewer: &Asker) -> kit_server_core::Result<Value> {
+    let mut v = request_json(&st.db, r, Some(viewer))?;
+    if let Some(p) = r.profile_id.and_then(|id| crate::quality::profile(&st.db, id).ok().flatten()) {
+        v["profileName"] = p["name"].clone();
+    }
+    Ok(v)
+}
+
+/// One page of requests in Seerr's shape, with `serviceErrors` (none: Marquee is its own Radarr and Sonarr).
+fn request_page(st: &AppState, s: &Seerr, list: Vec<Request>, q: &RequestQuery, default_take: usize) -> Answer {
+    let take = q.take.filter(|t| *t > 0).unwrap_or(default_take).min(1000);
+    let skip = q.skip.unwrap_or(0);
+    let total = list.len();
+    let results = list.iter().skip(skip).take(take).map(|r| listed(st, r, &s.0)).collect::<kit_server_core::Result<Vec<_>>>()?;
+    ok(json!({
+        "pageInfo": { "pages": total.div_ceil(take), "pageSize": take, "results": total, "page": skip.div_ceil(take) + 1 },
+        "results": results,
+        "serviceErrors": { "radarr": [], "sonarr": [] },
+    }))
 }
 
 /// `GET /request`.
 async fn list_requests(State(st): State<AppState>, s: Seerr, Query(q): Query<RequestQuery>) -> Answer {
-    let items = requests_for(&st, &s, &q, None)?;
-    ok(paged(items, &Paging { take: q.take, skip: q.skip }, 10))
+    let list = requests_for(&st, &s, &q, None)?;
+    request_page(&st, &s, list, &q, 10)
 }
 
 /// `POST /request` body (Seerr's names).
@@ -544,34 +641,35 @@ async fn create_request(State(st): State<AppState>, s: Seerr, Json(b): Json<NewR
     Ok((StatusCode::CREATED, Json(request_json(&st.db, &r, Some(&s.0))?)).into_response())
 }
 
-/// `GET /request/count`.
-async fn count(State(st): State<AppState>, s: Seerr) -> Answer {
-    let list: Vec<Request> = all(&st.db)?.into_iter().filter(|r| s.0.admin() || r.requested_by == s.0.id()).collect();
-    let n = |f: &dyn Fn(&Request) -> bool| list.iter().filter(|r| f(r)).count();
+/// `GET /request/count`: every request, counted like Seerr (for everybody signed in).
+async fn count(State(st): State<AppState>, _s: Seerr) -> Answer {
+    let list: Vec<(Request, i64)> = all(&st.db)?.into_iter().map(|r| (title_status(&st.db, &r), r)).map(|(t, r)| (r, t)).collect();
+    let n = |f: &dyn Fn(&Request, i64) -> bool| list.iter().filter(|(r, t)| f(r, *t)).count();
+    let there = super::media_status::AVAILABLE;
     ok(json!({
         "total": list.len(),
-        "movie": n(&|r| r.kind == "movie"),
-        "tv": n(&|r| r.kind == "tv"),
-        "pending": n(&|r| r.status == status::PENDING),
-        "approved": n(&|r| r.status == status::APPROVED),
-        "declined": n(&|r| r.status == status::DECLINED),
-        "processing": n(&|r| matches(&st.db, r, "processing")),
-        "available": n(&|r| matches(&st.db, r, "available")),
+        "movie": n(&|r, _| r.kind == "movie"),
+        "tv": n(&|r, _| r.kind == "tv"),
+        "pending": n(&|r, _| r.status == status::PENDING),
+        "approved": n(&|r, _| r.status == status::APPROVED),
+        "declined": n(&|r, _| r.status == status::DECLINED),
+        "processing": n(&|r, t| r.status == status::APPROVED && t != there),
+        "available": n(&|r, t| r.status == status::APPROVED && t == there),
+        "completed": n(&|r, _| r.status == status::COMPLETED),
     }))
 }
 
-/// The request `id` if `s` may see it: 404 "Request not found." (Seerr's words), 403 for somebody else's.
-fn visible(st: &AppState, s: &Seerr, id: i64) -> std::result::Result<Request, Fail> {
-    let r = find(&st.db, id)?.ok_or_else(|| err(404, "Request not found."))?;
-    if !s.0.admin() && r.requested_by != s.0.id() {
-        return Err(Fail(err(403, "You can only see your own requests")));
-    }
-    Ok(r)
+/// The request `id`: 404 "Request not found." (Seerr's words).
+fn found(st: &AppState, id: i64) -> std::result::Result<Request, Fail> {
+    Ok(find(&st.db, id)?.ok_or_else(|| err(404, "Request not found."))?)
 }
 
-/// `GET /request/{id}`.
+/// `GET /request/{id}`: your own, or any with MANAGE_REQUESTS or REQUEST_VIEW.
 async fn one_request(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let r = visible(&st, &s, id)?;
+    let r = found(&st, id)?;
+    if r.requested_by != s.0.id() && !s.0.has(&[perm::MANAGE_REQUESTS, perm::REQUEST_VIEW]) {
+        return Err(Fail(err(403, "You do not have permission to view this request.")));
+    }
     ok(request_json(&st.db, &r, Some(&s.0))?)
 }
 
@@ -579,10 +677,12 @@ async fn one_request(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestChange {
-    /// `movie` or `tv` (must stay the same)
+    /// `movie` or `tv`: which of Seerr's two edits this is
     pub media_type: Option<String>,
     /// the seasons (TV)
     pub seasons: Option<Value>,
+    /// Seerr's Radarr/Sonarr server (kept as given; Marquee is both)
+    pub server_id: Option<i64>,
     /// the quality profile
     pub profile_id: Option<i64>,
     /// the root folder
@@ -593,39 +693,89 @@ pub struct RequestChange {
     pub tags: Option<Vec<i64>>,
     /// move it to another account
     pub user_id: Option<i64>,
-    /// anime: `dub`, `dual` or `sub`
+    /// anime: `dub`, `dual` or `sub` (Marquee's own)
     pub anime_audio: Option<String>,
-    /// anime: the subtitle language
+    /// anime: the subtitle language (Marquee's own)
     pub anime_subtitles: Option<String>,
 }
 
-/// `PUT /request/{id}`: change a request (admins).
+/// `PUT /request/{id}`, ported from Seerr: a waiting request's profile, folder, tags, account and (TV) seasons.
+/// The asker may change their own TV request, and their own movie request with REQUEST_ADVANCED; MANAGE_REQUESTS
+/// may change any. Moving it to another account charges that account's limit in full; adding seasons charges
+/// the seasons not counted yet.
 async fn change_request(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json(b): Json<RequestChange>) -> Answer {
-    s.admin()?;
-    let mut r = visible(&st, &s, id)?;
-    if b.media_type.as_deref().is_some_and(|t| t != r.kind) {
+    let mut r = found(&st, id)?;
+    let kind = b.media_type.clone().unwrap_or_default();
+    let manager = s.0.has(&[perm::MANAGE_REQUESTS]);
+    if (r.requested_by != s.0.id() || (kind != "tv" && !s.0.has(&[perm::REQUEST_ADVANCED]))) && !manager {
+        return Err(Fail(err(403, "You do not have permission to modify this request.")));
+    }
+    if r.status != status::PENDING {
+        return Err(Fail(err(409, "Only pending requests can be modified.")));
+    }
+    if (kind == "movie" || kind == "tv") && kind != r.kind {
         return Err(Fail(err(400, "A request can't change between movie and TV")));
     }
-    if r.kind == "tv" {
-        let seasons = season_list(&b.seasons);
-        if !seasons.is_empty() {
-            r.seasons = seasons;
+    let previous_owner = r.requested_by;
+    let owner = match b.user_id {
+        Some(u) if u != previous_owner && !s.0.has_all(&[perm::MANAGE_USERS, perm::MANAGE_REQUESTS]) => {
+            return Err(Fail(err(403, "You do not have permission to modify the request user.")));
         }
-    }
-    if b.profile_id.is_some() {
-        r.profile_id = b.profile_id;
-    }
-    if let Some(f) = b.root_folder {
-        r.root_folder = Some(f).filter(|f| !f.trim().is_empty());
-    }
-    if b.language_profile_id.is_some() {
+        Some(u) => user(&st.db, u)?,
+        None => user(&st.db, previous_owner)?,
+    };
+    let owner_changing = owner.i("id") != previous_owner;
+    let (mq, tq) = super::quotas(&st.db, &owner)?;
+    if kind == "movie" {
+        if owner_changing && !r.ignore_quota && mq.restricted() {
+            return Err(Fail(err(403, "Movie Quota exceeded.")));
+        }
+    } else if kind == "tv" {
+        let requested = season_list(&b.seasons);
+        if requested.is_empty() {
+            return Err(Fail(err(500, "Missing seasons. If you want to cancel a series request, use the DELETE method.")));
+        }
+        let m = media(&st.db, r.media_id)?.ok_or_else(|| err(404, "Request not found."))?;
+        let others: Vec<i64> = super::for_media(&st.db, m.id)?
+            .into_iter()
+            .filter(|o| o.is4k == r.is4k && o.id != r.id && !matches!(o.status, status::DECLINED | status::COMPLETED))
+            .flat_map(|o| o.seasons)
+            .collect();
+        let current = r.seasons.clone();
+        let covered: Vec<i64> = availability(&st.db, &m)?
+            .seasons
+            .iter()
+            .filter(|(n, st)| *st != super::media_status::UNKNOWN && !current.contains(n))
+            .map(|(n, _)| *n)
+            .collect();
+        let filtered: Vec<i64> = requested.into_iter().filter(|n| !others.contains(n)).collect();
+        let kept: Vec<i64> = filtered.iter().copied().filter(|n| current.contains(n)).collect();
+        let new: Vec<i64> = filtered.iter().copied().filter(|n| !current.contains(n) && !covered.contains(n)).collect();
+        let resulting = (kept.len() + new.len()) as i64;
+        if resulting == 0 {
+            return Err(Fail(err(202, "No seasons available to request")));
+        }
+        if !r.ignore_quota {
+            // only what the owner's quota already counted for this request is paid for
+            let window =
+                (tq.days > 0).then(|| (chrono::Utc::now() - chrono::Duration::days(tq.days)).format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+            let counted = !owner_changing && window.is_none_or(|w| r.created_at > w);
+            let prior = if counted { current.len() as i64 } else { 0 };
+            if tq.limit > 0 && resulting - prior > tq.remaining().unwrap_or(0) {
+                return Err(Fail(err(403, "Series Quota exceeded.")));
+            }
+        }
+        let mut seasons: Vec<i64> = current.into_iter().filter(|n| kept.contains(n)).collect();
+        seasons.extend(new);
+        r.seasons = seasons;
         r.language_profile_id = b.language_profile_id;
     }
-    if let Some(t) = b.tags {
-        r.tags = t;
-    }
-    if let Some(u) = b.user_id {
-        r.requested_by = user(&st.db, u)?.i("id");
+    if kind == "movie" || kind == "tv" {
+        let _ = b.server_id;
+        r.profile_id = b.profile_id;
+        r.root_folder = b.root_folder.filter(|f| !f.trim().is_empty());
+        r.tags = b.tags.unwrap_or_default();
+        r.requested_by = owner.i("id");
     }
     if b.anime_audio.is_some() || b.anime_subtitles.is_some() {
         let audio = b.anime_audio.unwrap_or(r.anime_audio.clone());
@@ -633,39 +783,45 @@ async fn change_request(State(st): State<AppState>, s: Seerr, Path(id): Path<i64
         super::check_anime_choice(&audio, &subs)?;
         (r.anime_audio, r.anime_subtitles) = (audio, subs);
     }
-    r.modified_by = Some(s.0.id());
     r.updated_at = stamp();
     save(&st.db, &r)?;
     ok(request_json(&st.db, &r, Some(&s.0))?)
 }
 
-/// `DELETE /request/{id}`: 204. Admins any; an account its own while it waits for approval.
+/// `DELETE /request/{id}`: 204. MANAGE_REQUESTS any; the asker their own while it waits for approval (else 401,
+/// as Seerr answers).
 async fn delete_request(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let r = visible(&st, &s, id)?;
-    if !s.0.admin() && r.status != status::PENDING {
-        return Err(Fail(err(403, "Only an admin can remove a request once it was approved or declined")));
+    let r = found(&st, id)?;
+    if !s.0.has(&[perm::MANAGE_REQUESTS]) && (r.requested_by != s.0.id() || r.status != status::PENDING) {
+        return Err(Fail(err(401, "You do not have permission to delete this request.")));
     }
     remove(&st.db, id)?;
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
-/// `POST /request/{id}/approve` or `/decline` (admins).
+/// `POST /request/{id}/approve` or `/decline` (MANAGE_REQUESTS): only a waiting request.
 async fn approve_or_decline(State(st): State<AppState>, s: Seerr, Path((id, action)): Path<(i64, String)>) -> Answer {
-    s.admin()?;
+    s.needs(&[perm::MANAGE_REQUESTS])?;
+    let r = found(&st, id)?;
     let yes = match action.as_str() {
         "approve" => true,
         "decline" => false,
-        _ => return Err(Fail(err(404, "Unknown action: approve, decline or retry"))),
+        _ => return Err(Fail(err(400, "Status must be approve or decline."))),
     };
-    let r = visible(&st, &s, id)?;
+    if r.status != status::PENDING {
+        return Err(Fail(err(409, "Only pending requests can be approved or declined.")));
+    }
     let r = decide(&st, r, &s.0, yes).await?;
     ok(request_json(&st.db, &r, Some(&s.0))?)
 }
 
-/// `POST /request/{id}/retry`: approve again after it didn't work (admins).
+/// `POST /request/{id}/retry` (MANAGE_REQUESTS): approve again a request that didn't work.
 async fn retry(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    s.admin()?;
-    let r = visible(&st, &s, id)?;
+    s.needs(&[perm::MANAGE_REQUESTS])?;
+    let r = found(&st, id)?;
+    if r.status != status::FAILED {
+        return Err(Fail(err(409, "Only failed requests can be retried.")));
+    }
     let r = decide(&st, r, &s.0, true).await?;
     ok(request_json(&st.db, &r, Some(&s.0))?)
 }
@@ -756,15 +912,15 @@ async fn one_user(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> 
 /// `GET /user/{id}/requests`.
 async fn user_requests(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Query(q): Query<RequestQuery>) -> Answer {
     account(&st, &s, id)?;
-    let items = requests_for(&st, &s, &q, Some(id))?;
-    ok(paged(items, &Paging { take: q.take, skip: q.skip }, 20))
+    let list = requests_for(&st, &s, &q, Some(id))?;
+    request_page(&st, &s, list, &q, 20)
 }
 
 /// One quota in Seerr's shape.
 fn quota_json(q: &super::Quota) -> Value {
     json!({
         "days": q.days, "limit": q.limit, "used": q.used, "remaining": q.remaining(),
-        "restricted": q.remaining() == Some(0),
+        "restricted": q.restricted(),
     })
 }
 

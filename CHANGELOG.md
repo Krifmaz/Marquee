@@ -17,6 +17,9 @@
 - Plex and Jellyfin, and everything jfa-go did: Settings → Media servers (Jellyfin, Plex, sign-up and mail), Media access (whether each server answers, Scan now, each account's Jellyfin user and Plex share with its libraries and end date, linking existing users), Invites (one-time or multi-use links with an end date, role, servers and libraries; sent by mail), a public sign-up page, password reset by mail, accounts that end on a date with a reminder first, sign-in with Plex or Jellyfin, and "available" from either server. Accounts are made only in Marquee; Jellyfin and Plex follow every change (made, password, turned off, removed).
 - Android app (android/, on the kit's kit-compose in the Encore look): sign in with your Marquee account, a week-by-week calendar of movies and episodes, the download queue (admins can stop a download) and the library with search; each list keeps a copy for offline use. `GET /api/calendar` gives movies and episodes in one list. An APK is built for every pull request that changes the app.
 
+### Changed
+- Requests now follow Seerr 3.5.1 exactly (ported from its `routes/request.ts` and `MediaRequest`): the same permission checks (including 4K, choosing the account and skipping the limit), the same limits (every request not declined counts; a limit with no days counts all time), the same answers and words for errors (403, 409, 202 "No seasons available to request"), editing a waiting request's seasons, profile, folder and account the way Seerr does, the same request filters and order (newest id first), `completed` in the counts and counts for everybody, and `profileName` and `serviceErrors` in lists. A request that is done no longer blocks asking for the title again.
+
 ### Fixed
 - On the very first start, adding a movie or series right away could say "There is no such quality profile": the TRaSH defaults are now set up before Marquee answers anyone.
 
