@@ -1,6 +1,8 @@
 //! Reading a release's name: the title, year, season and episodes, the quality (source and resolution), the group,
-//! and whether it is a proper or repack. Qualities are named as Sonarr names them; [`name_for`] gives Radarr's name
-//! for movies, and the quality list of each kind (`quality_definitions`) gives the id.
+//! and whether it is a proper or repack. The quality comes from the ports of Sonarr's and Radarr's `QualityParser`
+//! ([`crate::parser`]): `quality_name` is Sonarr's reading, `movie_quality_name` Radarr's; [`name_for`] picks the one
+//! for a kind, and the quality list of each kind (`quality_definitions`) gives the id. Titles, seasons and episodes
+//! are still read here until `Parser.cs` is ported.
 
 use regex::Regex;
 use std::sync::LazyLock;
@@ -20,11 +22,13 @@ pub struct Parsed {
     pub absolute: Option<i64>,
     /// true for a whole season (`S01` with no episode)
     pub full_season: bool,
-    /// the quality's name, as Sonarr spells it
+    /// the quality's name, as Sonarr's parser reads it
     pub quality_name: &'static str,
+    /// the quality's name, as Radarr's parser reads it (for movies)
+    pub movie_quality_name: &'static str,
     /// the resolution in lines, 0 when unknown
     pub resolution: i64,
-    /// 1, or 2 and more for a proper, repack or real
+    /// Sonarr's revision version: 1, 2 for a proper or repack, more for `REPACK2` or anime `v3`
     pub revision: i64,
     /// the release group, "" when unknown
     pub group: String,
@@ -47,89 +51,20 @@ static GROUP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-([A-Za-z0-9]+)(?:
 /// Anime style group at the start: `[Group] Title`.
 static LEAD_GROUP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[([^\]]+)\]").unwrap());
 
-/// True when `name` holds one of `words` as a whole word (any case).
-fn has(name: &str, words: &[&str]) -> bool {
-    let lower = name.to_lowercase();
-    let parts: Vec<&str> = lower.split(|c: char| !c.is_ascii_alphanumeric() && c != '-').collect();
-    words.iter().any(|w| {
-        let w = w.to_lowercase();
-        parts.iter().any(|p| *p == w) || (w.contains(['-', ' ', '.']) && lower.contains(&w))
-    })
-}
-
-/// The quality's name (Sonarr's spelling) and the resolution a release name says.
+/// The quality's name (Sonarr's parser) and the resolution a release name says.
 pub fn quality_of(name: &str) -> (&'static str, i64) {
-    let res = RES.captures(name).map(|c| c[1].to_lowercase()).unwrap_or_default();
-    let r = match res.as_str() {
-        "2160p" | "4k" | "uhd" => 2160,
-        "1080p" | "1080i" => 1080,
-        "720p" => 720,
-        "576p" => 576,
-        "480p" => 480,
-        _ => 0,
+    let q = crate::parser::quality_tv::parse_quality(name);
+    let r = match crate::parser::quality_tv::parse_resolution(name.replace('_', " ").trim()) {
+        crate::parser::quality_tv::Resolution::R360p => 360,
+        crate::parser::quality_tv::Resolution::R480p => 480,
+        crate::parser::quality_tv::Resolution::R540p => 540,
+        crate::parser::quality_tv::Resolution::R576p => 576,
+        crate::parser::quality_tv::Resolution::R720p => 720,
+        crate::parser::quality_tv::Resolution::R1080p => 1080,
+        crate::parser::quality_tv::Resolution::R2160p => 2160,
+        crate::parser::quality_tv::Resolution::Unknown => 0,
     };
-    let remux = has(name, &["remux"]);
-    let bluray = has(name, &["bluray", "blu-ray", "bdrip", "brrip", "bd", "bdremux"]);
-    let webdl = has(name, &["web-dl", "webdl", "amzn", "nf", "dsnp", "hmax", "atvp", "pcok", "hulu", "itunes"]) && !has(name, &["webrip"]);
-    let webrip = has(name, &["webrip", "web-rip"]);
-    let web = has(name, &["web"]);
-    let hdtv = has(name, &["hdtv", "pdtv", "sdtv", "dsr", "tvrip"]);
-    let dvd = has(name, &["dvdrip", "dvd", "dvd9", "dvd5", "ntsc", "pal"]);
-    let q = if has(name, &["cam", "camrip", "hdcam"]) {
-        "CAM"
-    } else if has(name, &["ts", "telesync", "hdts", "pdvd"]) {
-        "TELESYNC"
-    } else if has(name, &["telecine", "tc", "hdtc"]) {
-        "TELECINE"
-    } else if has(name, &["dvdscr", "screener", "scr"]) {
-        "DVDSCR"
-    } else if remux {
-        if r == 2160 {
-            "Bluray-2160p Remux"
-        } else {
-            "Bluray-1080p Remux"
-        }
-    } else if bluray {
-        match r {
-            2160 => "Bluray-2160p",
-            1080 => "Bluray-1080p",
-            720 => "Bluray-720p",
-            576 => "Bluray-576p",
-            _ => "Bluray-480p",
-        }
-    } else if webrip {
-        match r {
-            2160 => "WEBRip-2160p",
-            1080 => "WEBRip-1080p",
-            720 => "WEBRip-720p",
-            _ => "WEBRip-480p",
-        }
-    } else if webdl || web {
-        match r {
-            2160 => "WEBDL-2160p",
-            1080 => "WEBDL-1080p",
-            720 => "WEBDL-720p",
-            _ => "WEBDL-480p",
-        }
-    } else if hdtv {
-        match r {
-            2160 => "HDTV-2160p",
-            1080 => "HDTV-1080p",
-            720 => "HDTV-720p",
-            _ => "SDTV",
-        }
-    } else if dvd {
-        "DVD"
-    } else {
-        match r {
-            2160 => "HDTV-2160p",
-            1080 => "HDTV-1080p",
-            720 => "HDTV-720p",
-            480 | 576 => "SDTV",
-            _ => "Unknown",
-        }
-    };
-    (q, r)
+    (q.quality.name, r)
 }
 
 /// The words of a title: dots and underscores as spaces, trimmed of separators.
@@ -143,10 +78,9 @@ fn title_words(s: &str) -> String {
 pub fn parse(name: &str) -> Parsed {
     let name = name.trim();
     let (quality_name, resolution) = quality_of(name);
-    let mut p = Parsed { quality_name, resolution, revision: 1, ..Parsed::default() };
-    if has(name, &["proper", "repack", "rerip", "real"]) {
-        p.revision = 2;
-    }
+    let revision = crate::parser::quality_tv::parse_quality(name).revision.version;
+    let movie_quality_name = crate::parser::quality_movie::parse_quality(name).quality.name;
+    let mut p = Parsed { quality_name, movie_quality_name, resolution, revision, ..Parsed::default() };
     p.group =
         GROUP.captures(name).map(|c| c[1].to_string()).or_else(|| LEAD_GROUP.captures(name).map(|c| c[1].to_string())).unwrap_or_default();
     let mut cut = name.len();
@@ -207,12 +141,12 @@ pub fn parse(name: &str) -> Parsed {
     p
 }
 
-/// A quality's name as `kind`'s quality list spells it (movies: Radarr's names).
-pub fn name_for(kind: &str, sonarr_name: &str) -> String {
-    match (kind, sonarr_name) {
-        ("movie", "Bluray-1080p Remux") => "Remux-1080p".into(),
-        ("movie", "Bluray-2160p Remux") => "Remux-2160p".into(),
-        _ => sonarr_name.into(),
+/// A release's quality name as `kind`'s quality list spells it: Radarr's reading for movies, Sonarr's otherwise.
+pub fn name_for(kind: &str, p: &Parsed) -> String {
+    if kind == "movie" {
+        p.movie_quality_name.into()
+    } else {
+        p.quality_name.into()
     }
 }
 
@@ -240,10 +174,10 @@ mod tests {
         assert_eq!((p.title.as_str(), p.year, p.quality_name), ("Dune Part Two", 2024, "WEBDL-2160p"));
         let p = parse("Blade Runner 2049 (2017) 1080p BluRay REMUX AVC DTS-HD MA 7.1-FGT");
         assert_eq!((p.title.as_str(), p.year, p.quality_name), ("Blade Runner 2049", 2017, "Bluray-1080p Remux"));
-        assert_eq!(name_for("movie", p.quality_name), "Remux-1080p");
+        assert_eq!(name_for("movie", &p), "Remux-1080p");
         let p = parse("Oppenheimer.2023.REPACK.720p.WEBRip.x264-GalaxyRG");
         assert_eq!((p.quality_name, p.revision), ("WEBRip-720p", 2));
-        assert_eq!(parse("Some.Movie.2024.HDCAM.x264-XYZ").quality_name, "CAM");
+        assert_eq!(parse("Some.Movie.2024.HDCAM.x264-XYZ").movie_quality_name, "CAM");
     }
 
     #[test]
