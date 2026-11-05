@@ -22,13 +22,12 @@
 //! POST   /user (MANAGE_USERS)   PUT /user (bulk permissions)   PUT /user/{id}   DELETE /user/{id}
 //! GET    /user/{id}/settings/main (POST: limits, admins; anime language, the account itself)
 //! GET    /user/{id}/settings/permissions (POST: admins)
-//! GET    /discover/movies, /discover/movies/upcoming, /discover/tv, /discover/tv/upcoming, /discover/trending
 //! GET    /search?query&page, /movie/{id}, /movie/{id}/recommendations|similar, /tv/{id},
 //!        /tv/{id}/season/{n}, /tv/{id}/recommendations|similar
 //! GET    /tv/{id}/anilist                    Marquee's own: AniList's seasons of an anime
 //! POST   /settings/notifications/test        Marquee's own: a test notification to every place set up (admins)
 //! GET    /issue/count                         zeros until issues are ported
-//! anything else under /api/v1                 a JSON 404 (discover's rows are in [`super::sliders`])
+//! anything else under /api/v1                 a JSON 404 (discover is in [`super::discover`], its rows in [`super::sliders`])
 //! ```
 
 use super::{
@@ -202,11 +201,6 @@ pub fn router() -> Router<AppState> {
         .route("/user/{id}/watchlist", get(user_watchlist))
         .route("/user/{id}/settings/main", get(main_settings).post(set_main_settings))
         .route("/user/{id}/settings/permissions", get(permissions_of).post(set_permissions))
-        .route("/discover/movies", get(discover_movies))
-        .route("/discover/movies/upcoming", get(upcoming_movies))
-        .route("/discover/tv", get(discover_tv))
-        .route("/discover/tv/upcoming", get(upcoming_tv))
-        .route("/discover/trending", get(trending))
         .route("/search", get(search))
         .route("/movie/{id}", get(movie))
         .route("/movie/{id}/{list}", get(movie_list))
@@ -1355,53 +1349,6 @@ pub struct DiscoverQuery {
     pub language: Option<String>,
     /// what to search for (`/search`)
     pub query: Option<String>,
-    /// a genre id
-    pub genre: Option<String>,
-    /// TMDB's sort (`popularity.desc`)
-    #[serde(rename = "sortBy")]
-    pub sort_by: Option<String>,
-}
-
-impl DiscoverQuery {
-    /// TMDB's parameters for a discover call.
-    fn tmdb(&self) -> Vec<(&'static str, String)> {
-        let mut q = discover::base_query(self.page, self.language.as_deref());
-        q.push(("sort_by", self.sort_by.clone().unwrap_or_else(|| "popularity.desc".into())));
-        if let Some(g) = self.genre.as_ref().filter(|g| !g.is_empty()) {
-            q.push(("with_genres", g.clone()));
-        }
-        q
-    }
-}
-
-/// `GET /discover/movies`.
-async fn discover_movies(State(st): State<AppState>, _s: Seerr, Query(q): Query<DiscoverQuery>) -> Answer {
-    ok(discover::tmdb_page(&st, "/discover/movie", &q.tmdb(), Some("movie")).await?)
-}
-
-/// `GET /discover/movies/upcoming`.
-async fn upcoming_movies(State(st): State<AppState>, _s: Seerr, Query(q): Query<DiscoverQuery>) -> Answer {
-    let mut t = q.tmdb();
-    t.push(("primary_release_date.gte", discover::today()));
-    ok(discover::tmdb_page(&st, "/discover/movie", &t, Some("movie")).await?)
-}
-
-/// `GET /discover/tv`.
-async fn discover_tv(State(st): State<AppState>, _s: Seerr, Query(q): Query<DiscoverQuery>) -> Answer {
-    ok(discover::tmdb_page(&st, "/discover/tv", &q.tmdb(), Some("tv")).await?)
-}
-
-/// `GET /discover/tv/upcoming`.
-async fn upcoming_tv(State(st): State<AppState>, _s: Seerr, Query(q): Query<DiscoverQuery>) -> Answer {
-    let mut t = q.tmdb();
-    t.push(("first_air_date.gte", discover::today()));
-    ok(discover::tmdb_page(&st, "/discover/tv", &t, Some("tv")).await?)
-}
-
-/// `GET /discover/trending`: movies and TV trending today.
-async fn trending(State(st): State<AppState>, _s: Seerr, Query(q): Query<DiscoverQuery>) -> Answer {
-    let t = discover::base_query(q.page, q.language.as_deref());
-    ok(discover::tmdb_page(&st, "/trending/all/day", &t, None).await?)
 }
 
 /// `GET /search?query=`: movies, TV and people.

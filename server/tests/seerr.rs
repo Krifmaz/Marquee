@@ -119,6 +119,44 @@ async fn fake_services() -> String {
         .route("/discover/movie", get(move || async move { page(vec![matrix(), json!({ "id": 604, "title": "The Matrix Reloaded" })]) }))
         .route("/discover/tv", get(move || async move { page(vec![severance()]) }))
         .route(
+            "/genre/{kind}/list",
+            get(|Path(kind): Path<String>| async move {
+                let g = if kind == "movie" {
+                    json!([{ "id": 878, "name": "Science Fiction" }, { "id": 28, "name": "Action" }])
+                } else {
+                    json!([{ "id": 18, "name": "Drama" }])
+                };
+                axum::Json(json!({ "genres": g }))
+            }),
+        )
+        .route(
+            "/configuration/languages",
+            get(|| async { axum::Json(json!([{ "iso_639_1": "ja", "english_name": "Japanese", "name": "日本語" }])) }),
+        )
+        .route(
+            "/keyword/{id}",
+            get(|Path(id): Path<i64>| async move {
+                if id == 9715 {
+                    (StatusCode::OK, axum::Json(json!({ "id": 9715, "name": "superhero" })))
+                } else {
+                    (StatusCode::NOT_FOUND, axum::Json(json!({ "status_code": 34 })))
+                }
+            }),
+        )
+        .route(
+            "/company/{id}",
+            get(|Path(id): Path<i64>| async move {
+                axum::Json(json!({ "id": id, "name": "Warner Bros.", "logo_path": "/wb.png", "origin_country": "US" }))
+            }),
+        )
+        .route(
+            "/network/{id}",
+            get(|Path(id): Path<i64>| async move {
+                axum::Json(json!({ "id": id, "name": "Apple TV+", "logo_path": "/atv.png", "origin_country": "US" }))
+            }),
+        )
+        .route("/trending/movie/week", get(move || async move { page(vec![matrix()]) }))
+        .route(
             "/trending/all/day",
             get(move || async move {
                 let mut m = matrix();
@@ -650,6 +688,41 @@ async fn discover_and_search_come_from_tmdb_with_what_was_asked_for() {
     let (s, e) = call(&app, "GET", "/movie/1", Some(sam), None).await;
     assert_eq!(s, StatusCode::NOT_FOUND, "{e}");
     assert!(e["message"].as_str().is_some());
+}
+
+#[tokio::test]
+async fn discover_pages_follow_seerr_routes_discover_ts() {
+    let (app, _) = server("discover-pages").await;
+    let sam = id_of(&app, "sam").await;
+    let (s, slider) = call(&app, "GET", "/discover/genreslider/movie", Some(sam), None).await;
+    assert_eq!(s, StatusCode::OK, "{slider}");
+    let names: Vec<&str> = slider.as_array().unwrap().iter().map(|g| g["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["Action", "Science Fiction"], "sorted by name");
+    assert!(slider[0]["backdrops"].is_array());
+    let (s, tv) = call(&app, "GET", "/discover/genreslider/tv", Some(sam), None).await;
+    assert_eq!((s, tv[0]["id"].as_i64()), (StatusCode::OK, Some(18)));
+    let (s, w) = call(&app, "GET", "/discover/watchlist", Some(sam), None).await;
+    assert_eq!((s, w["totalResults"].as_i64(), w["totalPages"].as_i64()), (StatusCode::OK, Some(0), Some(1)));
+    let (_, page) = call(&app, "GET", "/discover/movies?keywords=9715,1", Some(sam), None).await;
+    assert_eq!(page["keywords"], json!([{ "id": 9715, "name": "superhero" }]), "unknown keywords are left out");
+    let (_, page) = call(&app, "GET", "/discover/movies/language/ja", Some(sam), None).await;
+    assert_eq!((page["language"]["english_name"].as_str(), page["results"][0]["id"].as_i64()), (Some("Japanese"), Some(603)));
+    let (s, e) = call(&app, "GET", "/discover/movies/language/xx", Some(sam), None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Language not found.")));
+    let (_, page) = call(&app, "GET", "/discover/movies/genre/878", Some(sam), None).await;
+    assert_eq!(page["genre"]["name"], "Science Fiction");
+    let (s, e) = call(&app, "GET", "/discover/tv/genre/878", Some(sam), None).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Genre not found.")));
+    let (_, page) = call(&app, "GET", "/discover/movies/studio/174", Some(sam), None).await;
+    assert_eq!((page["studio"]["name"].as_str(), page["studio"]["logoPath"].as_str()), (Some("Warner Bros."), Some("/wb.png")));
+    let (_, page) = call(&app, "GET", "/discover/tv/network/2552", Some(sam), None).await;
+    assert_eq!((page["network"]["name"].as_str(), page["results"][0]["name"].as_str()), (Some("Apple TV+"), Some("Severance")));
+    let (_, page) = call(&app, "GET", "/discover/tv/upcoming", Some(sam), None).await;
+    assert_eq!(page["results"][0]["mediaType"], "tv");
+    let (_, page) = call(&app, "GET", "/discover/keyword/9715/movies", Some(sam), None).await;
+    assert_eq!(page["totalResults"], 2);
+    let (_, trending) = call(&app, "GET", "/discover/trending?mediaType=movie&timeWindow=week", Some(sam), None).await;
+    assert_eq!((trending["totalResults"].as_i64(), trending["results"][0]["mediaType"].as_str()), (Some(1), Some("movie")));
 }
 
 #[tokio::test]

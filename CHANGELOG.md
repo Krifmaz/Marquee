@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Seerr's discover pages (ported from Seerr 3.5.1's `routes/discover.ts`): all of Seerr's filters on movies and series, pages by language, genre, studio, network and keyword, upcoming up to 18 months ahead, trending by type and day or week, the genre rows with backdrops, and an empty watchlist until watchlist sync comes. The Seerr web app's home page no longer hits missing paths.
 - Calendar feeds to subscribe to in any calendar app, as in Sonarr and Radarr: `/sonarr/feed/v3/calendar/Sonarr.ics` (episodes) and `/radarr/feed/v3/calendar/Radarr.ics` (cinema, digital and disc releases), with the same options (past and future days, tags, unmonitored, premieres only, all-day, release types).
 - Live updates for the Sonarr and Radarr web apps (their SignalR hub at `/sonarr/signalr/messages` and `/radarr/signalr/messages`), and their API paths now work in any letter case (`/api/v3/customFilter` as well as `/api/v3/customfilter`), as in Sonarr and Radarr.
 - The parity checklist shows the ported quality parser, Seerr requests, media and discover rows, localization, custom filters and the live-updates hub; scripts/parity.py now also updates its endpoint counts.
