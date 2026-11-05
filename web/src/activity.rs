@@ -81,8 +81,8 @@ pub fn Activity(admin: bool) -> impl IntoView {
     }
 }
 
-/// One download's row.
-fn row(d: Value, admin: bool, reload: Callback<()>) -> impl IntoView {
+/// One download's row (the Anime tab's Activity uses it too).
+pub fn row(d: Value, admin: bool, reload: Callback<()>) -> impl IntoView {
     let id = d.get("id").and_then(Value::as_i64).unwrap_or(0);
     let title = s(&d, "title");
     let (words, kind) = standing(&d);

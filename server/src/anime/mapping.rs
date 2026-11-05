@@ -106,6 +106,11 @@ pub fn by_tvdb(db: &SqliteDb, tvdb: i64) -> Result<Vec<Entry>> {
     Ok(db.query("SELECT * FROM anime_map WHERE tvdb=? ORDER BY season, offset_eps", p![tvdb])?.iter().map(from_row).collect())
 }
 
+/// The entry of a TMDB movie (an anime film), when the list has one.
+pub fn by_tmdb_movie(db: &SqliteDb, tmdb: i64) -> Result<Option<Entry>> {
+    Ok(db.one("SELECT * FROM anime_map WHERE tmdb_movie=? AND anilist IS NOT NULL LIMIT 1", p![tmdb])?.map(|r| from_row(&r)))
+}
+
 /// How many entries the table holds.
 pub fn count(db: &SqliteDb) -> i64 {
     db.one("SELECT COUNT(*) AS n FROM anime_map", p![]).ok().flatten().map(|r| r.i("n")).unwrap_or(0)

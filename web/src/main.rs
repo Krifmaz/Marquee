@@ -9,13 +9,16 @@
 //! | `#/activity` | every download through Lantern, how far along, why one is stuck; Stop (admins) |
 //! | `#/move-in` | moving in from Radarr, Sonarr, jfa-go and Seerr: Check (a dry run), then Move in (admins) |
 //! | `#/tv` | every series as a poster with its missing episodes, TMDB search and Add (admins) |
+//! | `#/anime?v=<view>` | the Anime tab: its library (each season its own entry), AniList's Discover with Request, its calendar and downloads |
 //! | `#/bug-reports` | the account's bug reports and the New report sheet |
 //! | `#/settings?s=<page>` | the server settings form from the server's schema, Accounts and Folders (admins), Diagnostics and What's new |
 //!
-//! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`].
+//! The app's own pages go next to [`Home`], one component each, with a link in [`Shell`]. On phones the sidebar
+//! folds away and [`TabBar`] at the bottom holds Movies, TV, Anime, Activity and More (which opens the sidebar).
 
 mod accounts;
 mod activity;
+mod anime;
 mod media;
 mod move_in;
 mod movies;
@@ -157,6 +160,29 @@ fn NavLink(href: &'static str, label: &'static str, route: ReadSignal<Route>) ->
     view! { <a href=format!("#{href}") data-nav=href class:active=active><span>{label}</span></a> }
 }
 
+/// The tabs of the phone's bottom bar: (href, label). More opens the sidebar with everything else.
+pub const TABS: [(&str, &str); 4] = [("/movies", "Movies"), ("/tv", "TV"), ("/anime", "Anime"), ("/activity", "Activity")];
+
+/// Whether the page at `path` belongs to the tab `href` (`/anime` for `/anime?v=discover`).
+pub fn in_tab(path: &str, href: &str) -> bool {
+    path == href || path.starts_with(&format!("{href}/"))
+}
+
+/// The bar at the bottom on phones (the sidebar folds away there): the media tabs and More.
+#[component]
+fn TabBar(route: ReadSignal<Route>, menu: ReadSignal<bool>, set_menu: WriteSignal<bool>) -> impl IntoView {
+    view! {
+        <nav class="tabbar" aria-label="Sections">
+            {TABS.iter().map(|(href, label)| {
+                let active = move || !menu.get() && in_tab(&route.get().path, href);
+                view! { <a href=format!("#{href}") class:active=active>{*label}</a> }
+            }).collect_view()}
+            <button type="button" class:active=move || menu.get() aria-expanded=move || menu.get().to_string()
+                on:click=move |_| set_menu.update(|m| *m = !*m)>"More"</button>
+        </nav>
+    }
+}
+
 /// The question Sign out asks first (the kit's confirm dialog; the desktop app asks the same).
 pub fn sign_out_question() -> kit_rules::dialogs::Confirm {
     kit_rules::dialogs::Confirm::new("Sign out?")
@@ -169,7 +195,12 @@ pub fn sign_out_question() -> kit_rules::dialogs::Confirm {
 #[component]
 fn Shell(me: Value) -> impl IntoView {
     let (route, set_route) = signal(current_route());
-    rt::on_window("hashchange", move |_| set_route.set(current_route()));
+    // the sidebar on phones: open after More, closed again once a page is picked
+    let (menu, set_menu) = signal(false);
+    rt::on_window("hashchange", move |_| {
+        set_route.set(current_route());
+        set_menu.set(false);
+    });
     let name = app_name();
     let username = me.get("username").and_then(Value::as_str).unwrap_or("").to_string();
     let admin = me.get("is_admin").and_then(Value::as_bool) == Some(true);
@@ -193,6 +224,7 @@ fn Shell(me: Value) -> impl IntoView {
             "/bug-reports" => view! { <pages::BugReports/> }.into_any(),
             "/movies" => view! { <movies::Movies admin=admin/> }.into_any(),
             "/tv" => view! { <tv::Tv admin=admin/> }.into_any(),
+            "/anime" => view! { <anime::Anime admin=admin view=r.param("v")/> }.into_any(),
             "/activity" => view! { <activity::Activity admin=admin/> }.into_any(),
             "/move-in" if admin => view! { <move_in::MoveIn/> }.into_any(),
             "/settings" => view! { <pages::Settings page=r.param("s") admin=admin/> }.into_any(),
@@ -206,12 +238,13 @@ fn Shell(me: Value) -> impl IntoView {
     let track_links = [trash::nav(admin), requests::nav(admin), media::nav(admin)].concat();
     view! {
         <div class="shell">
-            <aside class="sidebar" id="sidebar">
+            <aside class="sidebar" id="sidebar" class:open=move || menu.get()>
                 <a class="brand" href="#/">{name}</a>
                 <nav class="nav">
                     <NavLink href="/" label="Home" route=route/>
                     <NavLink href="/movies" label="Movies" route=route/>
                     <NavLink href="/tv" label="TV" route=route/>
+                    <NavLink href="/anime" label="Anime" route=route/>
                     <NavLink href="/activity" label="Activity" route=route/>
                     {track_links.into_iter().map(|(href, label)| view! { <NavLink href=href label=label route=route/> }).collect_view()}
                 </nav>
@@ -232,6 +265,8 @@ fn Shell(me: Value) -> impl IntoView {
                 <div id="server-notice"></div>
                 <div id="view">{page}</div>
             </main>
+            <div class="sidebar-veil" class:open=move || menu.get() on:click=move |_| set_menu.set(false)></div>
+            <TabBar route=route menu=menu set_menu=set_menu/>
         </div>
     }
 }
@@ -244,6 +279,15 @@ mod tests {
     fn sign_out_asks_first() {
         let q = super::sign_out_question();
         assert_eq!((q.title.as_str(), q.ok.as_str(), q.danger), ("Sign out?", "Sign out", true));
+    }
+
+    #[test]
+    fn the_phone_tabs_put_anime_next_to_movies_and_tv() {
+        let labels: Vec<&str> = super::TABS.iter().map(|(_, l)| *l).collect();
+        assert_eq!(labels, ["Movies", "TV", "Anime", "Activity"]);
+        assert!(super::in_tab("/anime", "/anime"));
+        assert!(!super::in_tab("/tv", "/anime"));
+        assert!(!super::in_tab("/movies-old", "/movies"));
     }
 
     #[test]

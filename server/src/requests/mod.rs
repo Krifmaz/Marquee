@@ -810,8 +810,10 @@ pub async fn to_library(st: &AppState, r: &Request, m: &Media) -> Result<(i64, S
                         Some(p) => p,
                         None => crate::quality::default_profile(&st.db, "movie")?,
                     },
+                    // anime films go in the anime folder (the Anime tab's library), else with the movies
                     root_folder: match &r.root_folder {
                         Some(f) => f.clone(),
+                        None if m.anime => crate::series::default_root(&st.db, "anime").or_else(|_| crate::movies::default_root(&st.db))?,
                         None => crate::movies::default_root(&st.db)?,
                     },
                     path: None,

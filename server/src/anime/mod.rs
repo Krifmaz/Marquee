@@ -11,10 +11,16 @@
 //! POST /api/anime/review/{id}/keep      → imports the file as it is (admins)
 //! POST /api/anime/review/{id}/reject    → turns the release down for good; the episodes are searched again (admins)
 //! POST /api/anime/mapping/refresh       → {entries} fetches the mapping list now (admins)
+//! GET  /api/anime/discover?list=trending|season|upcoming|top&genre=&studio=&page=
+//!                                       → {results: [entry mapped, with media_type and media_status], more} (signed in)
+//! GET  /api/anime/genres                → AniList's genres, for Discover's filter (signed in)
 //! ```
+//!
+//! The Anime tab's library, calendar and downloads are in [`library`].
 
 pub mod anilist;
 pub mod language;
+pub mod library;
 pub mod mapping;
 
 use crate::roles::Me;
@@ -30,6 +36,7 @@ use serde_json::{json, Value};
 /// The anime tables: mapping, language choices, the Review queue.
 pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
     mapping::migrate(db)?;
+    library::migrate(db)?;
     db.execute_batch(
         "CREATE TABLE IF NOT EXISTS anime_review (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,11 +165,24 @@ async fn prefs_put(State(st): State<AppState>, me: Me, Json(b): Json<Prefs>) -> 
     Ok(Json(choice_json(&choice_for(&st.db, me.account.id))))
 }
 
-/// An AniList entry with its mapping and, when its series is added, Marquee's series id.
+/// An AniList entry with its mapping and, when its series (or film) is added, Marquee's id for it. `media_type`
+/// is what a request for it asks for (`movie` for films, else `tv`), and `media_status` where that request stands
+/// (Seerr's numbers: 2 requested, 3 approved, 4 partly there, 5 available; null when nobody asked).
 fn mapped(st: &AppState, m: &anilist::Media) -> Value {
     let e = mapping::by_anilist(&st.db, m.id).ok().flatten();
     let added = e.as_ref().and_then(|e| e.tvdb).and_then(|t| crate::series::by_tvdb(&st.db, t).ok().flatten()).map(|s| s.id);
+    let film = m.format == "MOVIE";
+    let tmdb = e.as_ref().and_then(|e| if film { e.tmdb_movie } else { e.tmdb_tv });
+    let movie_id =
+        e.as_ref().and_then(|e| e.tmdb_movie).filter(|_| film).and_then(|t| crate::movies::by_tmdb(&st.db, t).ok().flatten()).map(|m| m.id);
+    let kind = if film { "movie" } else { "tv" };
+    let status = tmdb
+        .and_then(|t| crate::requests::discover::media_info(&st.db, kind, t).ok().flatten())
+        .and_then(|v| v["status"].as_i64())
+        .filter(|s| *s > 1);
     json!({
+        "media_type": kind, "media_status": status, "movie_id": movie_id,
+        "genres": m.genres, "studios": m.studios, "score": m.score,
         "anilist_id": m.id, "mal_id": m.mal, "title": m.title, "romaji": m.romaji, "format": m.format, "status": m.status,
         "episodes": m.episodes, "season": m.season, "year": m.year, "poster": m.cover, "overview": m.overview,
         "next_episode": m.next_episode.map(|(n, at)| json!({ "episode": n, "airs": at })),
@@ -192,6 +212,36 @@ async fn lookup(State(st): State<AppState>, _me: Me, Query(q): Query<Lookup>) ->
 async fn seasons(State(st): State<AppState>, _me: Me, Path(id): Path<i64>) -> Result<Json<Value>> {
     let list = anilist::AniList::from(&st).seasons(id).await?;
     Ok(Json(json!(list.iter().map(|m| mapped(&st, m)).collect::<Vec<_>>())))
+}
+
+/// `GET /api/anime/discover` query.
+#[derive(Deserialize)]
+pub struct DiscoverQuery {
+    /// `trending` (default), `season`, `upcoming` or `top`
+    pub list: Option<String>,
+    /// one of AniList's genres
+    pub genre: Option<String>,
+    /// a studio's name
+    pub studio: Option<String>,
+    /// the page, from 1
+    pub page: Option<i64>,
+}
+
+/// `GET /api/anime/discover`.
+async fn discover(State(st): State<AppState>, _me: Me, Query(q): Query<DiscoverQuery>) -> Result<Json<Value>> {
+    let list = anilist::List::parse(q.list.as_deref().unwrap_or(""))
+        .ok_or_else(|| err(400, "Pick trending, this season, upcoming or top rated"))?;
+    let now = chrono::Utc::now();
+    let today = (chrono::Datelike::month(&now), chrono::Datelike::year(&now));
+    let (found, more) = anilist::AniList::from(&st)
+        .browse(list, q.genre.as_deref().unwrap_or(""), q.studio.as_deref().unwrap_or(""), q.page.unwrap_or(1), today)
+        .await?;
+    Ok(Json(json!({ "results": found.iter().map(|m| mapped(&st, m)).collect::<Vec<_>>(), "more": more })))
+}
+
+/// `GET /api/anime/genres`.
+async fn genres(State(st): State<AppState>, _me: Me) -> Result<Json<Value>> {
+    Ok(Json(json!(anilist::AniList::from(&st).genres().await?)))
 }
 
 /// `GET /api/anime/review`.
@@ -267,6 +317,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/anime/review", get(review_list))
         .route("/api/anime/review/{id}/{what}", post(review_decide))
         .route("/api/anime/mapping/refresh", post(mapping_refresh))
+        .route("/api/anime/discover", get(discover))
+        .route("/api/anime/genres", get(genres))
+        .merge(library::router())
 }
 
 /// Fetches the mapping list soon after start when it is empty, then once a day.
