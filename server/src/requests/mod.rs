@@ -711,6 +711,10 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
     }
     let f = facts(st, &a.kind, a.tmdb_id).await?;
     let m = upsert_media(&st.db, &a.kind, a.tmdb_id, &f)?;
+    if m.status_override == Some(media_status::DELETED) {
+        // like Seerr, a deleted title asked for again starts over
+        st.db.execute("UPDATE request_media SET status_override=NULL WHERE id=?", p![m.id])?;
+    }
     if let Some(t) = a.tvdb_id.filter(|t| *t > 0 && m.tvdb_id.is_none()) {
         st.db.execute("UPDATE request_media SET tvdb_id=? WHERE id=?", p![t, m.id])?;
     }
