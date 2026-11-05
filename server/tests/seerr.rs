@@ -450,3 +450,84 @@ async fn anime_requests_carry_the_language_choice_and_anilist_seasons() {
     assert_eq!(entries.len(), 2, "each season is its own entry");
     assert_eq!((entries[0]["airing"].as_str(), entries[1]["airing"].as_str()), (Some("Finished"), Some("Not yet aired")));
 }
+
+/// A Seerr stand-in answering its recorded users and requests, plus a person Marquee doesn't know; its address.
+async fn fake_seerr() -> String {
+    let mut users = real("user");
+    users["results"].as_array_mut().unwrap().push(json!({ "id": 3, "username": "ghost", "email": "ghost@example.com", "permissions": 32 }));
+    users["pageInfo"]["results"] = json!(3);
+    let mut requests = real("request");
+    let mut ghost = requests["results"][1].clone();
+    ghost["id"] = json!(3);
+    ghost["requestedBy"] = json!({ "id": 3, "username": "ghost", "email": "ghost@example.com" });
+    requests["results"].as_array_mut().unwrap().push(ghost);
+    requests["pageInfo"]["results"] = json!(3);
+    let app = Router::new()
+        .route(
+            "/api/v1/user",
+            get(move |h: axum::http::HeaderMap| {
+                let users = users.clone();
+                async move {
+                    if h.get("x-api-key").and_then(|v| v.to_str().ok()) != Some("seerr-key") {
+                        return (StatusCode::FORBIDDEN, axum::Json(json!({ "message": "Forbidden" })));
+                    }
+                    (StatusCode::OK, axum::Json(users))
+                }
+            }),
+        )
+        .route(
+            "/api/v1/request",
+            get(move || {
+                let r = requests.clone();
+                async move { axum::Json(r) }
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    format!("http://{addr}")
+}
+
+#[tokio::test]
+async fn requests_and_limits_move_in_from_seerr_after_a_dry_run() {
+    let (app, st) = server("moving-in").await;
+    let seerr = fake_seerr().await;
+    let sam = id_of(&app, "sam").await;
+    // The Matrix is already downloaded, so its request comes in as available
+    let (_, own) = call(&app, "POST", "/request", None, Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    assert_eq!(own["status"], 2, "{own}");
+    assert_eq!(call(&app, "DELETE", &format!("/request/{}", own["id"]), None, None).await.0, StatusCode::NO_CONTENT);
+    kit_server_core::Db::execute(&st.db, "UPDATE movies SET movie_file_id=1 WHERE tmdb_id=603", vec![]).unwrap();
+
+    let (s, e) = native(&app, "POST", "/api/migrate/seerr", json!({ "url": seerr, "api_key": "wrong" })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    let (s, dry) = native(&app, "POST", "/api/migrate/seerr", json!({ "url": format!("{seerr}/"), "api_key": "seerr-key" })).await;
+    assert_eq!(s, StatusCode::OK, "{dry}");
+    assert_eq!((dry["applied"].as_bool(), dry["added"].as_i64(), dry["problems"].as_i64()), (Some(false), Some(3), Some(2)), "{dry}");
+    let (_, list) = call(&app, "GET", "/request", None, None).await;
+    assert_eq!(list["pageInfo"]["results"], 0, "a dry run writes nothing");
+
+    let (_, done) = native(&app, "POST", "/api/migrate/seerr", json!({ "url": seerr, "api_key": "seerr-key", "apply": true })).await;
+    assert_eq!((done["applied"].as_bool(), done["added"].as_i64()), (Some(true), Some(3)), "{done}");
+    let (_, list) = call(&app, "GET", "/request?sortDirection=asc", None, None).await;
+    let got: Vec<(String, i64, i64)> = list["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["type"].as_str().unwrap().to_string(), r["status"].as_i64().unwrap(), r["requestedBy"]["id"].as_i64().unwrap()))
+        .collect();
+    assert_eq!(got, vec![("movie".into(), 5, sam), ("tv".into(), 1, sam)], "the movie is available, the show still waits");
+    let movie = &list["results"][0];
+    assert_eq!((movie["createdAt"].as_str(), movie["modifiedBy"]["username"].as_str()), (Some("2026-11-03T10:00:00.000Z"), Some("owner")));
+    assert_eq!(list["results"][1]["seasonCount"], 2);
+    let (_, main) = call(&app, "GET", &format!("/user/{sam}/settings/main"), None, None).await;
+    assert_eq!(
+        (main["movieQuotaLimit"].as_i64(), main["movieQuotaDays"].as_i64(), main["tvQuotaLimit"].as_i64(), main["tvQuotaDays"].as_i64()),
+        (Some(5), Some(7), Some(3), Some(14))
+    );
+
+    let (_, again) = native(&app, "POST", "/api/migrate/seerr", json!({ "url": seerr, "api_key": "seerr-key", "apply": true })).await;
+    let skipped: Vec<&str> =
+        again["items"].as_array().unwrap().iter().filter(|i| i["action"] == "skip").map(|i| i["detail"].as_str().unwrap()).collect();
+    assert_eq!(skipped.iter().filter(|d| d.contains("already moved in")).count(), 2, "running it again adds nothing: {again}");
+}
