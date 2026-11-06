@@ -834,7 +834,7 @@ fn import_movie(st: &AppState, d: &Download, movie_id: i64, video: &std::path::P
     }
     let linked = place_with_subs(video, &to)?;
     let size = std::fs::metadata(&to).map(|x| x.len() as i64).unwrap_or(0);
-    let parsed = crate::release::parse(&d.title);
+    let parsed = crate::release::parse_movie(&d.title);
     let fid = st.db.execute(
         "INSERT INTO movie_files (movie_id, path, size, quality, release_group, scene_name, hardlinked, added) VALUES (?,?,?,?,?,?,?,?)",
         p![movie_id, to.to_string_lossy(), size, d.quality, parsed.group, d.title, linked, now_iso()],
@@ -857,14 +857,14 @@ fn import_movie(st: &AppState, d: &Download, movie_id: i64, video: &std::path::P
 fn import_episodes(st: &AppState, d: &Download, series_id: i64, videos: &[PathBuf]) -> Result<()> {
     let s = series::find(&st.db, series_id)?.ok_or_else(|| err(404, "The series was removed from Marquee"))?;
     let eps = series::episodes(&st.db, series_id)?;
-    let whole = crate::release::parse(&d.title);
+    let whole = crate::release::parse_series(&d.title);
     let mut placed = 0;
     for v in videos {
         let name = v.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        let p = crate::release::parse(name);
+        let p = crate::release::parse_series(name);
         let mine: Vec<&Episode> = match (p.season, p.absolute) {
             (Some(n), _) if !p.episodes.is_empty() => eps.iter().filter(|e| e.season == n && p.episodes.contains(&e.episode)).collect(),
-            (None, Some(a)) => eps.iter().filter(|e| e.absolute == Some(a)).collect(),
+            (None, Some(_)) => eps.iter().filter(|e| e.absolute.is_some_and(|n| p.absolutes.contains(&n))).collect(),
             _ if videos.len() == 1 => eps.iter().filter(|e| d.episode_ids.contains(&e.id)).collect(),
             _ => vec![],
         };
