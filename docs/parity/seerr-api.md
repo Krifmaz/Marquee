@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**70 done, 0 stub, 147 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**79 done, 0 stub, 138 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -47,16 +47,16 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/discover/watchlist` | ✅ Done | Get the Plex watchlist. |
 | `GET` | `/genres/movie` | ⬜ Missing | Get list of official TMDB movie genres |
 | `GET` | `/genres/tv` | ⬜ Missing | Get list of official TMDB movie genres |
-| `GET` | `/issue` | ⬜ Missing | Get all issues |
-| `POST` | `/issue` | ⬜ Missing | Create new issue |
+| `GET` | `/issue` | ✅ Done | Get all issues |
+| `POST` | `/issue` | ✅ Done | Create new issue |
 | `GET` | `/issue/count` | ✅ Done | Gets issue counts |
-| `DELETE` | `/issue/{issueId}` | ⬜ Missing | Delete issue |
-| `GET` | `/issue/{issueId}` | ⬜ Missing | Get issue |
-| `POST` | `/issue/{issueId}/comment` | ⬜ Missing | Create a comment |
-| `POST` | `/issue/{issueId}/{status}` | ⬜ Missing | Update an issue's status |
-| `DELETE` | `/issueComment/{commentId}` | ⬜ Missing | Delete issue comment |
-| `GET` | `/issueComment/{commentId}` | ⬜ Missing | Get issue comment |
-| `PUT` | `/issueComment/{commentId}` | ⬜ Missing | Update issue comment |
+| `DELETE` | `/issue/{issueId}` | ✅ Done | Delete issue |
+| `GET` | `/issue/{issueId}` | ✅ Done | Get issue |
+| `POST` | `/issue/{issueId}/comment` | ✅ Done | Create a comment |
+| `POST` | `/issue/{issueId}/{status}` | ✅ Done | Update an issue's status |
+| `DELETE` | `/issueComment/{commentId}` | ✅ Done | Delete issue comment |
+| `GET` | `/issueComment/{commentId}` | ✅ Done | Get issue comment |
+| `PUT` | `/issueComment/{commentId}` | ✅ Done | Update issue comment |
 | `GET` | `/keyword/{keywordId}` | ⬜ Missing | Get keyword |
 | `GET` | `/languages` | ⬜ Missing | Languages supported by TMDB |
 | `GET` | `/media` | ✅ Done | Get media |

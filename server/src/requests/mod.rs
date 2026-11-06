@@ -17,6 +17,7 @@
 pub mod anilist;
 pub mod blocklist;
 pub mod discover;
+pub mod issues;
 pub mod moving_in;
 pub mod notify;
 pub mod seerr;
@@ -115,12 +116,18 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
     )
     .map_err(|e| anyhow::anyhow!("The request tables can't be made: {}", e.detail))?;
     sliders::migrate(db)?;
-    blocklist::migrate(db)
+    blocklist::migrate(db)?;
+    issues::migrate(db)
 }
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
 pub fn router() -> Router<AppState> {
-    seerr::router().merge(blocklist::router()).merge(discover::router()).merge(sliders::router()).merge(moving_in::router())
+    seerr::router()
+        .merge(blocklist::router())
+        .merge(issues::router())
+        .merge(discover::router())
+        .merge(sliders::router())
+        .merge(moving_in::router())
 }
 
 /// Every minute: approved requests whose files are all there become completed, and their people hear about it.

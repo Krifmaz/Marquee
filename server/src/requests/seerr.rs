@@ -26,7 +26,6 @@
 //!        /tv/{id}/season/{n}, /tv/{id}/recommendations|similar
 //! GET    /tv/{id}/anilist                    Marquee's own: AniList's seasons of an anime
 //! POST   /settings/notifications/test        Marquee's own: a test notification to every place set up (admins)
-//! GET    /issue/count                         zeros until issues are ported
 //! anything else under /api/v1                 a JSON 404 (discover is in [`super::discover`], its rows in [`super::sliders`])
 //! ```
 
@@ -95,6 +94,12 @@ pub mod perm {
     pub const MANAGE_BLOCKLIST: i64 = 268435456;
     /// see the blocklist
     pub const VIEW_BLOCKLIST: i64 = 1073741824;
+    /// handle everybody's issues
+    pub const MANAGE_ISSUES: i64 = 1048576;
+    /// see everybody's issues
+    pub const VIEW_ISSUES: i64 = 2097152;
+    /// report issues
+    pub const CREATE_ISSUES: i64 = 4194304;
 }
 
 /// Seerr's `hasPermission(bits, value, {type: 'or'})` for the account `u`: admins have every bit.
@@ -213,7 +218,6 @@ pub fn router() -> Router<AppState> {
         .route("/tv/{id}/season/{n}", get(tv_season))
         .route("/tv/{id}/{list}", get(tv_list))
         .route("/settings/notifications/test", post(test_notifications))
-        .route("/issue/count", get(issue_count))
         .fallback(no_such_path);
     Router::new().nest("/api/v1", v1)
 }
@@ -222,11 +226,6 @@ pub fn router() -> Router<AppState> {
 /// app's page where they expect JSON.
 async fn no_such_path(axum::extract::OriginalUri(uri): axum::extract::OriginalUri) -> Fail {
     Fail(err(404, format!("There is nothing at {} here.", uri.path())))
-}
-
-/// `GET /issue/count`: Seerr's issue counts, all zero until the issues module is ported.
-async fn issue_count(_s: Seerr) -> Answer {
-    ok(json!({ "total": 0, "video": 0, "audio": 0, "subtitles": 0, "others": 0, "open": 0, "closed": 0 }))
 }
 
 /// Seerr's Seerr-style permission bits for an account.

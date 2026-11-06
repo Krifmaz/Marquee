@@ -31,7 +31,7 @@ these by hand; rerun the script in the PR that adds the route):
 | --- | --- | --- | --- | --- |
 | Sonarr v3 | 60 | 10 | 164 | [parity/sonarr-api.md](parity/sonarr-api.md) |
 | Radarr v3 | 56 | 11 | 170 | [parity/radarr-api.md](parity/radarr-api.md) |
-| Seerr v1 | 70 | 0 | 147 | [parity/seerr-api.md](parity/seerr-api.md) |
+| Seerr v1 | 79 | 0 | 138 | [parity/seerr-api.md](parity/seerr-api.md) |
 
 "Stub" answers a fixed empty value so clients don't fail, but does nothing yet. A PR that adds routes in a new file
 adds that file to `ROUTE_FILES` in the script. To rerun:
@@ -103,7 +103,7 @@ Track: *Seerr*.
 | Auth (`routes/auth.ts`: local, Plex, Jellyfin) | 🟨 | Marquee sign-in, Plex/Jellyfin sign-in in `media_servers/` | Answer Seerr's `/auth/*` paths for clients that sign in |
 | Settings (`routes/settings/*`) | ⬜ | Marquee's own settings | Seerr's settings endpoints (main, Plex, Jellyfin, Radarr/Sonarr = Marquee itself, notifications, jobs, cache, logs) |
 | Notifications (`lib/notifications/agents`) | 🟨 | Discord, ntfy | Email (have `mail.rs`), Gotify, Pushbullet, Pushover, Slack, Telegram, webhook, web push |
-| Issues (`routes/issue.ts`, `issueComment.ts`) | ⬜ | — | Issues and comments |
+| Issues (`routes/issue.ts`, `issueComment.ts`) | 🟨 | `requests/issues.rs` (ported from `routes/issue.ts`, `routes/issueComment.ts`) | Issue notifications; reporting for requesters once per-account permissions are stored ([decision](DECISIONS.md)) |
 | Blocklist (`routes/blocklist.ts`, `job/blocklistedTagsProcessor.ts`) | 🟨 | `requests/blocklist.rs` (ported from `routes/blocklist.ts`) | Blocklisted tags (`blocklistedTagsProcessor.ts`) |
 | Watchlist sync (`lib/watchlistsync.ts`) | ⬜ | — | Plex watchlist auto-requests |
 | Availability sync, scanners (`lib/availabilitySync.ts`, `lib/scanners`) | 🟨 | `media_available` from Plex/Jellyfin | Sonarr/Radarr scanners are Marquee's own library (➖); port availability rules |
