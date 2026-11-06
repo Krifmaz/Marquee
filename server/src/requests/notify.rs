@@ -99,7 +99,7 @@ pub struct Note {
 
 /// The words for `event` on request `r` for the title `m`, asked for by `asker`.
 pub fn note(event: Event, r: &Request, m: &Media, asker: &str) -> Note {
-    let name = if m.year > 0 { format!("{} ({})", m.title, m.year) } else { m.title.clone() };
+    let name = full_name(m);
     let what = if r.kind == "tv" && !r.seasons.is_empty() {
         let list: Vec<String> = r.seasons.iter().map(|s| s.to_string()).collect();
         let s = if r.seasons.len() == 1 { "season" } else { "seasons" };
@@ -146,28 +146,73 @@ impl Event {
     }
 }
 
+/// Who hears about one piece of news: Seerr's `notifyUser`, `notifyAdmin`, and the person who caused it, who
+/// isn't told as an admin about what they did themselves (`shouldSendAdminNotification`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Audience {
+    /// Seerr's kind of news ([`kind`])
+    pub kind: i64,
+    /// whether the people with the kind's admin permission hear about it
+    pub admins: bool,
+    /// the one account told directly (the person who asked, or who reported the issue)
+    pub user: Option<i64>,
+    /// the account that caused it
+    pub actor: Option<i64>,
+}
+
+impl Audience {
+    /// Who hears about `event` on request `r` (Seerr's `MediaRequest.sendNotification`).
+    pub fn of_request(event: Event, r: &Request) -> Audience {
+        let admins = event.for_admins();
+        Audience {
+            kind: event.kind(),
+            admins,
+            user: if admins || event == Event::Test { None } else { Some(r.requested_by) },
+            actor: Some(r.modified_by.unwrap_or(r.requested_by)),
+        }
+    }
+}
+
 /// Sends the news about `r` in the background, to every place that is set up and to each account that gets it.
 pub fn spawn(st: &AppState, event: Event, r: &Request, m: &Media, asker: &str) {
-    let n = note(event, r, m, asker);
-    let mails = match recipients(&st.db, event, r) {
-        Ok(people) if crate::mail::enabled(st) => people.iter().filter_map(|u| mail_for(st, u, &n, r, m)).collect(),
-        Ok(_) => vec![],
-        Err(e) => {
-            tracing::warn!("The accounts to tell about a request can't be read: {}", e.detail);
+    if event == Event::Test {
+        return spawn_note(st, note(event, r, m, asker), None, "", String::new());
+    }
+    let page = format!("{}/{}", if r.kind == "tv" { "tv" } else { "movie" }, m.tmdb_id);
+    spawn_note(st, note(event, r, m, asker), Some(Audience::of_request(event, r)), &full_name(m), page);
+}
+
+/// The title's name with its year.
+pub fn full_name(m: &Media) -> String {
+    if m.year > 0 {
+        format!("{} ({})", m.title, m.year)
+    } else {
+        m.title.clone()
+    }
+}
+
+/// Sends note `n` in the background to every place that is set up and, by mail, to each account of `audience`;
+/// the mail's subject names `name` and links to `page` in the Seerr web app.
+pub fn spawn_note(st: &AppState, n: Note, audience: Option<Audience>, name: &str, page: String) {
+    let mails = match audience.map(|a| recipients(&st.db, &a)) {
+        Some(Ok(people)) if crate::mail::enabled(st) => people.iter().filter_map(|u| mail_for(st, u, &n, name, &page)).collect(),
+        Some(Err(e)) => {
+            tracing::warn!("The accounts to tell the news can't be read: {}", e.detail);
             vec![]
         }
+        _ => vec![],
     };
     let st = st.clone();
     tokio::spawn(async move {
         for (place, outcome) in send(&st, &n).await {
             if let Err(e) = outcome {
-                tracing::warn!("The request notification to {place} didn't go out: {}", e.detail);
+                tracing::warn!("The notification to {place} didn't go out: {}", e.detail);
             }
         }
         for mail in mails {
             let to = mail.to.clone();
             if let Err(e) = crate::mail::send(&st, mail).await {
-                tracing::warn!("The request notification mail to {to} didn't go out: {e}");
+                tracing::warn!("The notification mail to {to} didn't go out: {e}");
             }
         }
     });
@@ -180,45 +225,40 @@ fn mail_kinds(db: &SqliteDb, user_id: i64) -> Result<i64> {
     Ok(data["notificationTypes"]["email"].as_i64().unwrap_or(kind::ALL))
 }
 
-/// The accounts that get mail about `event` on request `r`: the person who asked, or the people who manage
-/// requests (not the one who asked when it was approved automatically), each only when they chose that news.
-/// Turned-off accounts get nothing.
-pub fn recipients(db: &SqliteDb, event: Event, r: &Request) -> Result<Vec<Row>> {
-    let k = event.kind();
-    if event == Event::Test {
-        return Ok(vec![]);
-    }
+/// Whether account `u` (with id `id`) hears about `a` as an admin (Seerr's `shouldSendAdminNotification`).
+fn as_admin(u: &Row, id: i64, a: &Audience) -> bool {
+    let p = permissions(u);
+    let allowed = p & perm::ADMIN != 0 || p & admin_permission(a.kind) != 0;
+    let own = matches!(
+        a.kind,
+        kind::MEDIA_AUTO_APPROVED | kind::ISSUE_CREATED | kind::ISSUE_COMMENT | kind::ISSUE_RESOLVED | kind::ISSUE_REOPENED
+    ) && a.actor == Some(id);
+    a.admins && allowed && !own && a.user != Some(id)
+}
+
+/// The accounts that get mail about `a`, each only when they chose that news. Turned-off accounts get nothing.
+pub fn recipients(db: &SqliteDb, a: &Audience) -> Result<Vec<Row>> {
     let users = db.query("SELECT * FROM users WHERE disabled=0 ORDER BY id", p![])?;
     let mut out = vec![];
     for u in users {
         let id = u.i("id");
-        let wanted = if event.for_admins() {
-            let p = permissions(&u);
-            let allowed = p & perm::ADMIN != 0 || p & admin_permission(k) != 0;
-            let own = event == Event::AutoApproved && id == r.modified_by.unwrap_or(r.requested_by);
-            allowed && !own
-        } else {
-            id == r.requested_by
-        };
-        if wanted && has_type(k, mail_kinds(db, id)?) {
+        if (a.user == Some(id) || as_admin(&u, id, a)) && has_type(a.kind, mail_kinds(db, id)?) {
             out.push(u);
         }
     }
     Ok(out)
 }
 
-/// The mail for account `u` about note `n`, or `None` when the account has no mail address.
-fn mail_for(st: &AppState, u: &Row, n: &Note, r: &Request, m: &Media) -> Option<crate::mail::Mail> {
+/// The mail for account `u` about note `n` on the title `name`, or `None` when the account has no mail address.
+fn mail_for(st: &AppState, u: &Row, n: &Note, name: &str, page: &str) -> Option<crate::mail::Mail> {
     let to = u.s("email");
     if !to.contains('@') {
         return None;
     }
-    let name = if m.year > 0 { format!("{} ({})", m.title, m.year) } else { m.title.clone() };
     let mut text = format!("Hello {},\n\n{}\n", u.s("username"), n.body);
     let url = crate::mail::public_url(st);
-    if !url.is_empty() {
-        let page = if r.kind == "tv" { "tv" } else { "movie" };
-        text.push_str(&format!("\nOpen it: {url}/requests/{page}/{}\n", m.tmdb_id));
+    if !url.is_empty() && !page.is_empty() {
+        text.push_str(&format!("\nOpen it: {url}/requests/{page}\n"));
     }
     Some(crate::mail::Mail { to, subject: format!("{} – {}", n.title, name), text })
 }

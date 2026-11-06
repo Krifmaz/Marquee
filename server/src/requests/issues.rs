@@ -16,8 +16,8 @@
 //! DELETE /api/v1/issueComment/{id}           remove a comment
 //! ```
 
-use super::seerr::{has_any, media_json, perm, shown_user, Answer, Fail, Seerr};
-use super::{media, stamp};
+use super::seerr::{has_any, media_json, perm, permissions, shown_user, Answer, Fail, Seerr};
+use super::{media, notify, stamp};
 use crate::AppState;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -219,6 +219,65 @@ pub struct Report {
     pub user_id: Option<i64>,
 }
 
+/// What went wrong, in words: "the picture", "the sound", "the subtitles" or "something".
+fn problem(issue_type: i64) -> &'static str {
+    match issue_type {
+        kind::VIDEO => "the picture",
+        kind::AUDIO => "the sound",
+        kind::SUBTITLES => "the subtitles",
+        _ => "something else",
+    }
+}
+
+/// The username of account `id` ("somebody" when it's gone).
+fn name_of(db: &SqliteDb, id: i64) -> String {
+    db.one("SELECT username FROM users WHERE id=?", p![id]).ok().flatten().map(|u| u.s("username")).unwrap_or_else(|| "somebody".into())
+}
+
+/// Sends the news of kind `k` (Seerr's `IssueSubscriber` and `IssueCommentSubscriber`) about issue `r`, caused by
+/// account `actor`; `said` is the new comment for `ISSUE_COMMENT`.
+fn tell(st: &AppState, k: i64, r: &Row, actor: i64, said: &str) {
+    let Ok(Some(m)) = media(&st.db, r.i("media_id")) else { return };
+    let name = notify::full_name(&m);
+    let mut what = format!("{} of {name}", problem(r.i("issue_type")));
+    if m.kind == "tv" && r.i("problem_season") > 0 {
+        what.push_str(&format!(", season {}", r.i("problem_season")));
+        if r.i("problem_episode") > 0 {
+            what.push_str(&format!(" episode {}", r.i("problem_episode")));
+        }
+    }
+    let first = st
+        .db
+        .one("SELECT message FROM request_issue_comments WHERE issue_id=? ORDER BY id LIMIT 1", p![r.i("id")])
+        .ok()
+        .flatten()
+        .map(|c| c.s("message"))
+        .unwrap_or_default();
+    let who = name_of(&st.db, actor);
+    let (title, body) = match k {
+        notify::kind::ISSUE_CREATED => ("New problem reported", format!("{who} reported a problem with {what}: \u{201c}{first}\u{201d}")),
+        notify::kind::ISSUE_RESOLVED => ("Problem resolved", format!("{who} marked the problem with {what} as resolved.")),
+        notify::kind::ISSUE_REOPENED => ("Problem reopened", format!("{who} opened the problem with {what} again.")),
+        _ => ("New comment on a problem", format!("{who} commented on the problem with {what}: \u{201c}{said}\u{201d}")),
+    };
+    // the reporter hears directly unless they manage issues or did it themselves
+    let reporter = r.i("created_by");
+    let manages = st
+        .db
+        .one("SELECT * FROM users WHERE id=?", p![reporter])
+        .ok()
+        .flatten()
+        .map(|u| {
+            let p = permissions(&u);
+            p & (perm::ADMIN | perm::MANAGE_ISSUES) != 0
+        })
+        .unwrap_or(true);
+    let user = (k != notify::kind::ISSUE_CREATED && !manages && reporter != actor).then_some(reporter);
+    let n = notify::Note { title: title.to_string(), body, image: crate::movies::poster_url(&m.poster) };
+    let a = notify::Audience { kind: k, admins: true, user, actor: Some(actor) };
+    notify::spawn_note(st, n, Some(a), &name, format!("issues/{}", r.i("id")));
+}
+
 /// `POST /issue`: 201 with the new issue.
 async fn report(State(st): State<AppState>, s: Seerr, Json(b): Json<Report>) -> Answer {
     s.needs(&[perm::MANAGE_ISSUES, perm::CREATE_ISSUES])?;
@@ -249,6 +308,7 @@ async fn report(State(st): State<AppState>, s: Seerr, Json(b): Json<Report>) -> 
         p![id, by, b.message, now, now],
     )?;
     let r = find(&st.db, id)?;
+    tell(&st, notify::kind::ISSUE_CREATED, &r, by, "");
     Ok((StatusCode::CREATED, Json(issue_json(&st.db, &r, full(&s))?)).into_response())
 }
 
@@ -301,6 +361,7 @@ async fn comment(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json
         p![id, s.0.id(), b.message, now, now],
     )?;
     st.db.execute("UPDATE request_issues SET updated_at=? WHERE id=?", p![now, id])?;
+    tell(&st, notify::kind::ISSUE_COMMENT, &r, s.0.id(), &b.message);
     Ok(Json(issue_json(&st.db, &find(&st.db, id)?, full(&s))?).into_response())
 }
 
@@ -317,6 +378,10 @@ async fn set_status(State(st): State<AppState>, s: Seerr, Path((id, status)): Pa
         _ => return Err(Fail(err(400, "You must provide a valid status"))),
     };
     st.db.execute("UPDATE request_issues SET status=?, modified_by=?, updated_at=? WHERE id=?", p![to, s.0.id(), stamp(), id])?;
+    if r.i("status") != to {
+        let k = if to == state::RESOLVED { notify::kind::ISSUE_RESOLVED } else { notify::kind::ISSUE_REOPENED };
+        tell(&st, k, &r, s.0.id(), "");
+    }
     Ok(Json(issue_json(&st.db, &find(&st.db, id)?, full(&s))?).into_response())
 }
 
