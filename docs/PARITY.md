@@ -52,7 +52,7 @@ otherwise. Track: *Arr*.
 | Movies (movies, collections, credits, alt titles) — Radarr | 🟨 | `movies.rs`, `radarr.rs` | Collections, credits, alternative titles, movie translations, `MovieService` edge cases |
 | MetadataSource (SkyHook / TMDB) | 🟨 | `tmdb.rs` (TMDB for both) | Sonarr reads SkyHook (TVDB); Marquee uses TMDB by [decision](DECISIONS.md). Port search/lookup ranking and refresh rules |
 | SeriesStats / MovieStats | 🟨 | computed in `sonarr.rs` / `radarr.rs` | Port the stats queries (episode file counts, size on disk, percent) exactly |
-| Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser`, `LanguageParser`, both apps' `Parser.cs`, `ReleaseGroupParser` and `SceneChecker` ported with their upstream test cases; `quality_tv.rs`, `quality_movie.rs`, `language*.rs`, `episode.rs`, `movie.rs`, `release_group_movie.rs`, `clr_regex.rs`), `release.rs` | wire the ported parsers into release parsing (`release.rs`) |
+| Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser`, `LanguageParser`, both apps' `Parser.cs`, `ReleaseGroupParser` and `SceneChecker` ported with their upstream test cases; `quality_tv.rs`, `quality_movie.rs`, `language*.rs`, `episode.rs`, `movie.rs`, `release_group_movie.rs`, `clr_regex.rs`); `release.rs` reads movie names with Radarr's parser and series names with Sonarr's | both apps' `ParsingService` (finding the movie, series and episodes a parsed name means, scene and alternate titles) |
 | Languages (language list, ISO codes) | ✅ | `parser/` (`Language`, `IsoLanguages`) | — |
 | DataAugmentation (scene mappings, XEM, daily series) — Sonarr | ⬜ | — | Scene mapping and XEM numbering, `DailySeries` |
 | Qualities (definitions, sizes) | ✅ | `quality.rs` | — |

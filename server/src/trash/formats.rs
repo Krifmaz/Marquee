@@ -94,6 +94,7 @@ impl Facts {
             (Some(_), true, _) => 3,
             (Some(_), false, n) if n > 1 => 2,
             (Some(_), false, _) => 1,
+            (None, _, _) if parsed.absolutes.len() > 1 => 2,
             (None, _, _) if parsed.absolute.is_some() => 1,
             _ => 0,
         };
@@ -432,10 +433,10 @@ pub fn compiled(db: &SqliteDb, kind: &str) -> Arc<Vec<Format>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::release::parse;
+    use crate::release::parse_for;
 
     fn facts(kind: &str, title: &str) -> Facts {
-        Facts::new(kind, title, &parse(title), 5_000_000_000)
+        Facts::new(kind, title, &parse_for(kind, title), 5_000_000_000)
     }
 
     #[test]
