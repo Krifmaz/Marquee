@@ -1,0 +1,156 @@
+{
+ "should_normalize_series_title": [
+  [
+   "Series",
+   "series"
+  ],
+  [
+   "Series (2009)",
+   "series2009"
+  ],
+  [
+   "Series.2010",
+   "series2010"
+  ],
+  [
+   "Series_and_Title_Sonarr",
+   "seriestitlesonarr"
+  ]
+ ],
+ "should_remove_special_characters_and_casing": [
+  [
+   "CaPitAl",
+   "capital"
+  ],
+  [
+   "peri.od",
+   "period"
+  ],
+  [
+   "this.^&%^**$%@#$!That",
+   "thisthat"
+  ],
+  [
+   "test/test",
+   "testtest"
+  ],
+  [
+   "90210",
+   "90210"
+  ],
+  [
+   "24",
+   "24"
+  ],
+  [
+   "Test: Something à Deux",
+   "testsomethingdeux"
+  ],
+  [
+   "Parler à",
+   "parlera"
+  ]
+ ],
+ "should_remove_common_words_from_middle_of_title": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_common_words_from_end_of_title": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_common_words_in_the_middle_of_word": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "a"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_from_the_beginning_of_the_title": [
+  [
+   "The Series",
+   "theseries"
+  ],
+  [
+   "The Series Show With Sonarr Dev",
+   "theseriesshowwithsonarrdev"
+  ],
+  [
+   "The.Series.Show",
+   "theseriesshow"
+  ]
+ ],
+ "should_not_clean_word_from_beginning_of_string": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "a"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_replace_percent_sign_with_percent_following_numbers": [
+  [
+   "3%",
+   "3percent"
+  ],
+  [
+   "Series Top & 100% Coding Developers",
+   "seriestop100percentcodingdevelopers"
+  ],
+  [
+   "Series Title What's Your F@%king Deal?!",
+   "seriestitlewhatsyourfkingdeal"
+  ]
+ ]
+}

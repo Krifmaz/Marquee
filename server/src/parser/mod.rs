@@ -10,10 +10,14 @@
 //! | `Languages/Language`, `Parser/IsoLanguage(s)`, subtitle half of `Parser/LanguageParser` | [`language`] |
 //! | Sonarr `Parser/LanguageParser.ParseLanguages` | [`language_tv`] |
 //! | Radarr `Parser/LanguageParser.ParseLanguages` | [`language_movie`] |
+//! | Sonarr `Parser/Parser`, `Parser/SceneChecker`, `Parser/Model/ParsedEpisodeInfo` | [`episode`] |
 //! | Radarr `Parser/Parser`, `Parser/SceneChecker` | [`movie`] |
 //! | Radarr `Parser/ReleaseGroupParser`, `ParserCommon`, `MediaFiles/FileExtensions` | [`release_group_movie`] |
+//! | .NET regular expressions with every capture (`Group.Captures`) | [`clr_regex`] |
 //! | .NET string helpers (`int.TryParse`, UTF-16 positions, `RemoveAccent`) | [`text`] |
 
+pub mod clr_regex;
+pub mod episode;
 pub mod language;
 pub mod language_movie;
 pub mod language_tv;
