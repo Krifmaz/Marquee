@@ -803,7 +803,7 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
     let r = find(&st.db, id)?.ok_or_else(|| err(500, "The new request can't be read back"))?;
     tracing::info!("{} asked for {} ({})", who.row.s("username"), f.title, a.kind);
     if auto {
-        return decide(st, r, by, true).await;
+        return settle(st, r, by, true, true).await;
     }
     notify::spawn(st, notify::Event::Pending, &r, &m, &who.row.s("username"));
     Ok(r)
@@ -812,7 +812,13 @@ pub async fn ask(st: &AppState, by: &Asker, a: Ask) -> Result<Request> {
 /// Approves (`yes`) or declines a request as `by`. Approving adds the title to the library (or turns on the
 /// asked-for seasons) and starts a search; when that can't be done the request is marked as failed with the
 /// reason, and Retry tries again.
-pub async fn decide(st: &AppState, mut r: Request, by: &Asker, yes: bool) -> Result<Request> {
+pub async fn decide(st: &AppState, r: Request, by: &Asker, yes: bool) -> Result<Request> {
+    settle(st, r, by, yes, false).await
+}
+
+/// [`decide`], saying whether the request was approved automatically when it was made (`auto`), which tells
+/// different people (Seerr's `MEDIA_AUTO_APPROVED`).
+async fn settle(st: &AppState, mut r: Request, by: &Asker, yes: bool, auto: bool) -> Result<Request> {
     let m = media(&st.db, r.media_id)?.ok_or_else(|| err(404, "The title of this request is gone"))?;
     r.modified_by = Some(by.id());
     r.updated_at = stamp();
@@ -834,7 +840,7 @@ pub async fn decide(st: &AppState, mut r: Request, by: &Asker, yes: bool) -> Res
             }
             r.message.clear();
             save(&st.db, &r)?;
-            notify::spawn(st, notify::Event::Approved, &r, &m, &asker);
+            notify::spawn(st, if auto { notify::Event::AutoApproved } else { notify::Event::Approved }, &r, &m, &asker);
         }
         Err(e) => {
             r.status = status::FAILED;
