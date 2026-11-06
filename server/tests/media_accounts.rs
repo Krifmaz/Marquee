@@ -595,6 +595,19 @@ async fn a_forgotten_password_is_reset_by_mail_here_and_on_jellyfin() {
 }
 
 #[tokio::test]
+async fn a_password_set_on_seerrs_settings_page_reaches_jellyfin() {
+    let (app, _, f) = server("seerr-password", false).await;
+    let new = json!({ "username": "ida", "password": "ida-password", "media": { "jellyfin": {} } });
+    let (_, v, _) = call(&app, req("POST", "/api/users", true, Some(new))).await;
+    let id = v["id"].as_i64().unwrap();
+    let path = format!("/api/v1/user/{id}/settings/password");
+    let (s, v, _) = call(&app, req("POST", &path, true, Some(json!({ "newPassword": "ida-new-password" })))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    assert_eq!(login(&app, "ida", "ida-new-password").await, StatusCode::OK);
+    assert_eq!(jf_user(&f, "ida").unwrap()["Password"], "ida-new-password");
+}
+
+#[tokio::test]
 async fn accounts_end_on_their_date_with_a_reminder_first() {
     let (app, st, f) = server("expiry", false).await;
     let new = json!({ "username": "max", "password": "max-password", "email": "max@example.com", "media": { "jellyfin": {}, "plex": {} } });
