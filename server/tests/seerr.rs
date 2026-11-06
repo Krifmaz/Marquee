@@ -438,8 +438,8 @@ async fn admins_decline_change_and_remove_and_people_remove_their_own() {
     let (_, main) =
         call(&app, "POST", &format!("/user/{sam}/settings/main"), None, Some(json!({ "movieQuotaLimit": 9, "movieQuotaDays": 30 }))).await;
     assert_eq!((main["movieQuotaLimit"].as_i64(), main["movieQuotaDays"].as_i64()), (Some(9), Some(30)));
-    let (s, _) = call(&app, "POST", &format!("/user/{sam}/settings/main"), Some(sam), Some(json!({ "movieQuotaLimit": 99 }))).await;
-    assert_eq!(s, StatusCode::FORBIDDEN, "people don't raise their own limits");
+    let (s, own) = call(&app, "POST", &format!("/user/{sam}/settings/main"), Some(sam), Some(json!({ "movieQuotaLimit": 99 }))).await;
+    assert_eq!((s, own["movieQuotaLimit"].as_i64()), (StatusCode::OK, Some(9)), "like Seerr, your own limits are left as they are");
     let media_id = auto["media"]["id"].as_i64().unwrap();
     let (_, m) = call(&app, "POST", &format!("/media/{media_id}/available"), None, None).await;
     assert_eq!(m["status"], 5);
@@ -804,6 +804,55 @@ async fn issues_follow_seerr_routes_issue_ts() {
     assert_eq!(call(&app, "DELETE", &format!("/issue/{id}"), None, None).await.0, StatusCode::NO_CONTENT);
     let (s, e) = call(&app, "GET", &format!("/issue/{id}"), None, None).await;
     assert_eq!((s, e["detail"].as_str()), (StatusCode::NOT_FOUND, Some("Issue not found.")));
+}
+
+#[tokio::test]
+async fn account_settings_follow_seerr_usersettings_ts() {
+    let (app, _) = server("account-settings").await;
+    let sam = id_of(&app, "sam").await;
+    let vic = id_of(&app, "vic").await;
+    let (s, _) = call(&app, "GET", &format!("/user/{vic}/settings/main"), Some(sam), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "somebody else's settings need MANAGE_USERS");
+    let body = json!({ "username": "samuel", "email": "samuel@example.com", "locale": "fr", "discoverRegion": "FR",
+        "originalLanguage": "fr|ja", "watchlistSyncMovies": true });
+    let (s, main) = call(&app, "POST", &format!("/user/{sam}/settings/main"), Some(sam), Some(body)).await;
+    assert_eq!(s, StatusCode::OK, "{main}");
+    assert_eq!(
+        (main["username"].as_str(), main["email"].as_str(), main["locale"].as_str()),
+        (Some("samuel"), Some("samuel@example.com"), Some("fr"))
+    );
+    assert_eq!(
+        (main["discoverRegion"].as_str(), main["watchlistSyncMovies"].as_bool(), main["streamingRegion"].as_str()),
+        (Some("FR"), Some(true), None)
+    );
+    assert_eq!(main["animeAudio"], "dual", "Marquee's anime choice stays on the page");
+    let (s, e) = call(&app, "POST", &format!("/user/{vic}/settings/main"), None, Some(json!({ "username": "samuel" }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("That name is already used by another account.")));
+    let (s, e) = call(&app, "POST", "/user/1/settings/main", Some(sam), Some(json!({ "locale": "de" }))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{e}");
+
+    let (_, pw) = call(&app, "GET", &format!("/user/{sam}/settings/password"), Some(sam), None).await;
+    assert_eq!(pw["hasPassword"], true);
+    let path = format!("/user/{sam}/settings/password");
+    let (s, e) = call(&app, "POST", &path, Some(sam), Some(json!({ "newPassword": "short" }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::BAD_REQUEST, Some("Password must be at least 8 characters.")));
+    let (s, e) = call(&app, "POST", &path, Some(sam), Some(json!({ "currentPassword": "wrong-one", "newPassword": "a-new-secret" }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::FORBIDDEN, Some("Current password is invalid.")));
+    assert_eq!(
+        call(&app, "POST", &path, None, Some(json!({ "newPassword": "set-by-the-owner" }))).await.0,
+        StatusCode::NO_CONTENT,
+        "a manager sets it outright"
+    );
+    let (s, _) =
+        call(&app, "POST", &path, Some(sam), Some(json!({ "currentPassword": "set-by-the-owner", "newPassword": "a-new-secret" }))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+
+    let (s, _) = call(&app, "GET", &format!("/user/{vic}/settings/permissions"), Some(sam), None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, e) = call(&app, "POST", "/user/1/settings/permissions", None, Some(json!({ "permissions": 32 }))).await;
+    assert_eq!((s, e["detail"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to modify this user")));
+    let (_, p) = call(&app, "POST", &format!("/user/{vic}/settings/permissions"), None, Some(json!({ "permissions": 32 }))).await;
+    assert_eq!(p["permissions"], 32);
 }
 
 #[tokio::test]

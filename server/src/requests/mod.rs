@@ -22,6 +22,7 @@ pub mod moving_in;
 pub mod notify;
 pub mod seerr;
 pub mod sliders;
+pub mod user_settings;
 
 use crate::roles::Role;
 use crate::series::Season;
@@ -117,7 +118,8 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
     .map_err(|e| anyhow::anyhow!("The request tables can't be made: {}", e.detail))?;
     sliders::migrate(db)?;
     blocklist::migrate(db)?;
-    issues::migrate(db)
+    issues::migrate(db)?;
+    user_settings::migrate(db)
 }
 
 /// The track's routes: the Seerr API (also the web app's) at `/api/v1`.
@@ -127,6 +129,7 @@ pub fn router() -> Router<AppState> {
         .merge(issues::router())
         .merge(discover::router())
         .merge(sliders::router())
+        .merge(user_settings::router())
         .merge(moving_in::router())
 }
 

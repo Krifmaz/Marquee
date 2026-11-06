@@ -99,12 +99,18 @@ pub fn verify_password(pw: &str, hashed: &str) -> bool {
 /// A username of 3 to 32 letters, digits, `_`, `-` and `.`, and a password of 8 characters or more; 400
 /// otherwise.
 pub fn validate_credentials(username: &str, password: &str) -> Result<()> {
+    validate_username(username)?;
+    if password.chars().count() < 8 {
+        return Err(err(400, "Password must be at least 8 characters"));
+    }
+    Ok(())
+}
+
+/// A username of 3 to 32 letters, digits, `_`, `-` and `.`; 400 otherwise.
+pub fn validate_username(username: &str) -> Result<()> {
     let ok_name = (3..=32).contains(&username.chars().count()) && username.chars().all(|c| c.is_alphanumeric() || "_-.".contains(c));
     if !ok_name {
         return Err(err(400, "Username must be 3-32 characters: letters, numbers, . _ -"));
-    }
-    if password.chars().count() < 8 {
-        return Err(err(400, "Password must be at least 8 characters"));
     }
     Ok(())
 }
