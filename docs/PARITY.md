@@ -31,7 +31,7 @@ these by hand; rerun the script in the PR that adds the route):
 | --- | --- | --- | --- | --- |
 | Sonarr v3 | 60 | 10 | 164 | [parity/sonarr-api.md](parity/sonarr-api.md) |
 | Radarr v3 | 56 | 11 | 170 | [parity/radarr-api.md](parity/radarr-api.md) |
-| Seerr v1 | 83 | 0 | 134 | [parity/seerr-api.md](parity/seerr-api.md) |
+| Seerr v1 | 87 | 0 | 130 | [parity/seerr-api.md](parity/seerr-api.md) |
 
 "Stub" answers a fixed empty value so clients don't fail, but does nothing yet. A PR that adds routes in a new file
 adds that file to `ROUTE_FILES` in the script. To rerun:
@@ -99,7 +99,7 @@ Track: *Seerr*.
 | Discover (`routes/discover.ts`) | 🟨 | `requests/discover.rs`, `requests/sliders.rs` (discover rows from `settings/discover`) | Genres, keywords, studios, networks, languages, watchlist |
 | Movie, TV, person, collection details | 🟨 | movie and TV done | Person, collection, cast/crew pages, ratings from RT/IMDb as upstream |
 | Search (`routes/search.ts`) | 🟨 | `/search` | Keyword and company search |
-| Users, permissions, quotas (`routes/user`, `lib/permissions.ts`) | 🟨 | `requests/seerr.rs` (ported from `routes/user/index.ts`), `requests/user_settings.rs` (general, password, permissions and notification settings from `usersettings.ts`); roles map to permission bits ([decision](DECISIONS.md)) | Linked accounts (`usersettings.ts`), sending to each account's own notification settings, watchlist |
+| Users, permissions, quotas (`routes/user`, `lib/permissions.ts`) | 🟨 | `requests/seerr.rs` (ported from `routes/user/index.ts`), `requests/user_settings.rs` (general, password, permissions, notification settings and linked accounts from `usersettings.ts`); roles map to permission bits ([decision](DECISIONS.md)) | Sending to each account's own notification settings, watchlist |
 | Auth (`routes/auth.ts`: local, Plex, Jellyfin) | 🟨 | Marquee sign-in, Plex/Jellyfin sign-in in `media_servers/` | Answer Seerr's `/auth/*` paths for clients that sign in |
 | Settings (`routes/settings/*`) | ⬜ | Marquee's own settings | Seerr's settings endpoints (main, Plex, Jellyfin, Radarr/Sonarr = Marquee itself, notifications, jobs, cache, logs) |
 | Notifications (`lib/notifications/agents`) | 🟨 | Discord, ntfy | Email (have `mail.rs`), Gotify, Pushbullet, Pushover, Slack, Telegram, webhook, web push |

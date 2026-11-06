@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**83 done, 0 stub, 134 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**87 done, 0 stub, 130 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -203,11 +203,11 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `GET` | `/user/{userId}/pushSubscriptions` | ⬜ Missing | Get all web push notification settings for a user |
 | `GET` | `/user/{userId}/quota` | ✅ Done | Get quotas for a specific user |
 | `GET` | `/user/{userId}/requests` | ✅ Done | Get requests for a specific user |
-| `DELETE` | `/user/{userId}/settings/linked-accounts/jellyfin` | ⬜ Missing | Remove the linked Jellyfin account for a user |
-| `POST` | `/user/{userId}/settings/linked-accounts/jellyfin` | ⬜ Missing | Link the provided Jellyfin account to the current user |
+| `DELETE` | `/user/{userId}/settings/linked-accounts/jellyfin` | ✅ Done | Remove the linked Jellyfin account for a user |
+| `POST` | `/user/{userId}/settings/linked-accounts/jellyfin` | ✅ Done | Link the provided Jellyfin account to the current user |
 | `POST` | `/user/{userId}/settings/linked-accounts/jellyfin/quickconnect` | ⬜ Missing | Link Jellyfin/Emby account with Quick Connect |
-| `DELETE` | `/user/{userId}/settings/linked-accounts/plex` | ⬜ Missing | Remove the linked Plex account for a user |
-| `POST` | `/user/{userId}/settings/linked-accounts/plex` | ⬜ Missing | Link the provided Plex account to the current user |
+| `DELETE` | `/user/{userId}/settings/linked-accounts/plex` | ✅ Done | Remove the linked Plex account for a user |
+| `POST` | `/user/{userId}/settings/linked-accounts/plex` | ✅ Done | Link the provided Plex account to the current user |
 | `GET` | `/user/{userId}/settings/main` | ✅ Done | Get general settings for a user |
 | `POST` | `/user/{userId}/settings/main` | ✅ Done | Update general settings for a user |
 | `GET` | `/user/{userId}/settings/notifications` | ✅ Done | Get notification settings for a user |

@@ -434,7 +434,15 @@ async fn link(State(st): State<AppState>, me: Me, Path((id, server)): Path<(i64,
     me.admin()?;
     super::known(&server)?;
     user(&st.db, id)?;
-    let remote = b.remote_id.trim().to_string();
+    link_remote(&st, id, &server, &b.remote_id).await?;
+    Ok(Json(access(&st.db, id)?))
+}
+
+/// Links the existing Jellyfin user (`server` "jellyfin", its user id) or Plex share ("plex", the share's id)
+/// `remote_id` to account `id`; 409 when another account has it, 404 when the server has no such user or share.
+pub async fn link_remote(st: &AppState, id: i64, server: &str, remote_id: &str) -> Result<()> {
+    let server = server.to_string();
+    let remote = remote_id.trim().to_string();
     if remote.is_empty() {
         return Err(err(400, "Pick the user to link"));
     }
@@ -447,7 +455,7 @@ async fn link(State(st): State<AppState>, me: Me, Path((id, server)): Path<(i64,
         return Err(err(409, "That user is already linked to another account"));
     }
     let (name, email, plex_id, libraries) = if server == "jellyfin" {
-        let u = super::jellyfin(&st)?
+        let u = super::jellyfin(st)?
             .users()
             .await?
             .into_iter()
@@ -459,8 +467,8 @@ async fn link(State(st): State<AppState>, me: Me, Path((id, server)): Path<(i64,
         };
         (u.name, String::new(), String::new(), libs)
     } else {
-        let px = super::plex(&st)?;
-        let machine = plex_machine(&st, &px).await?;
+        let px = super::plex(st)?;
+        let machine = plex_machine(st, &px).await?;
         let s = px.shares(&machine).await?.into_iter().find(|s| s.id == remote).ok_or_else(|| err(404, "Plex has no such share"))?;
         (if s.username.is_empty() { s.email.clone() } else { s.username }, s.email, s.user_id, KEEP.to_string())
     };
@@ -478,13 +486,19 @@ async fn link(State(st): State<AppState>, me: Me, Path((id, server)): Path<(i64,
             p![remote, plex_id, name, email, libraries, id],
         )?;
     }
-    Ok(Json(access(&st.db, id)?))
+    Ok(())
 }
 
 /// `DELETE /api/users/{id}/media/{server}`: forget the link only.
 async fn unlink(State(st): State<AppState>, me: Me, Path((id, server)): Path<(i64, String)>) -> Result<Json<Value>> {
     me.admin()?;
     super::known(&server)?;
-    st.db.execute("DELETE FROM media_accounts WHERE user_id=? AND server=?", p![id, server])?;
+    forget(&st.db, id, &server)?;
     Ok(Json(json!({ "ok": true })))
+}
+
+/// Forgets account `id`'s link to `server`; the Jellyfin user or Plex share itself stays.
+pub fn forget(db: &SqliteDb, id: i64, server: &str) -> Result<()> {
+    db.execute("DELETE FROM media_accounts WHERE user_id=? AND server=?", p![id, server])?;
+    Ok(())
 }
