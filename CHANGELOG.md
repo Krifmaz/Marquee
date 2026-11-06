@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Each account's notification settings from Seerr 3.5.1's `usersettings.ts` (`/api/v1/user/{id}/settings/notifications`): Discord ids, Pushbullet, Pushover and Telegram details, a PGP key and which news to get, kept for the notifications port; the page shows mail as on when Marquee can send mail.
 - Movie release and folder names are now read by Radarr's own title parser, ported line by line: the title and its other names (AKA), year, edition, release group, anime hashes, IMDb and TMDb ids, burned-in subtitles and languages, and whether a name is a scene name; Radarr's upstream test cases run with every build. Movie searches and imports start using it in a following change.
 - The Sonarr and Radarr rules that look back over a varying stretch of a release name (such as "German, but not after the year") can now be read as upstream writes them, which the title parsers coming next need.
 - Seerr's issues (ported from Seerr 3.5.1's `routes/issue.ts` and `routes/issueComment.ts`): report a problem with a title's video, audio or subtitles, talk about it in comments, resolve it or open it again, and see how many are open. `GET /api/v1/issue/count` now counts real issues.

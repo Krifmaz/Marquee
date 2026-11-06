@@ -2,7 +2,7 @@
 
 Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`564bfb08b5`](https://github.com/seerr-team/seerr/tree/564bfb08b54caa374bddaf820abfd226e5e69151)). Marquee serves it under `/api/v1` (no prefix).
 
-**81 done, 0 stub, 136 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
+**83 done, 0 stub, 134 missing of 217.** Stub means Marquee answers with a fixed empty value so clients don't fail, but does nothing yet.
 
 | Method | Path | Marquee | Upstream summary |
 | --- | --- | --- | --- |
@@ -210,8 +210,8 @@ Written by `scripts/parity.py`; don't edit by hand. Upstream: Seerr v3.5.1 ([`56
 | `POST` | `/user/{userId}/settings/linked-accounts/plex` | ⬜ Missing | Link the provided Plex account to the current user |
 | `GET` | `/user/{userId}/settings/main` | ✅ Done | Get general settings for a user |
 | `POST` | `/user/{userId}/settings/main` | ✅ Done | Update general settings for a user |
-| `GET` | `/user/{userId}/settings/notifications` | ⬜ Missing | Get notification settings for a user |
-| `POST` | `/user/{userId}/settings/notifications` | ⬜ Missing | Update notification settings for a user |
+| `GET` | `/user/{userId}/settings/notifications` | ✅ Done | Get notification settings for a user |
+| `POST` | `/user/{userId}/settings/notifications` | ✅ Done | Update notification settings for a user |
 | `GET` | `/user/{userId}/settings/password` | ✅ Done | Get password page informatiom |
 | `POST` | `/user/{userId}/settings/password` | ✅ Done | Update password for a user |
 | `GET` | `/user/{userId}/settings/permissions` | ✅ Done | Get permission settings for a user |

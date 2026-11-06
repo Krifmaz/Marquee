@@ -853,6 +853,21 @@ async fn account_settings_follow_seerr_usersettings_ts() {
     assert_eq!((s, e["detail"].as_str()), (StatusCode::FORBIDDEN, Some("You do not have permission to modify this user")));
     let (_, p) = call(&app, "POST", &format!("/user/{vic}/settings/permissions"), None, Some(json!({ "permissions": 32 }))).await;
     assert_eq!(p["permissions"], 32);
+
+    let path = format!("/user/{vic}/settings/notifications");
+    let (s, n) = call(&app, "GET", &path, Some(vic), None).await;
+    assert_eq!(
+        (s, n["emailEnabled"].as_bool(), n["discordIds"].clone(), n["notificationTypes"].clone()),
+        (StatusCode::OK, Some(false), json!([]), json!({}))
+    );
+    let body = json!({ "discordIds": ["123", ""], "telegramChatId": "42", "notificationTypes": { "email": 6 } });
+    let (_, n) = call(&app, "POST", &path, Some(vic), Some(body)).await;
+    assert_eq!((n["discordIds"].clone(), n["telegramChatId"].as_str()), (json!(["123"]), Some("42")), "{n}");
+    let (_, n) = call(&app, "POST", &path, Some(vic), Some(json!({ "notificationTypes": { "discord": 2 } }))).await;
+    assert_eq!(n["notificationTypes"], json!({ "email": 6, "discord": 2 }), "news types are merged");
+    assert_eq!(n["telegramChatId"], Value::Null, "the other fields are kept as sent, like Seerr");
+    let (s, _) = call(&app, "POST", "/user/1/settings/notifications", Some(vic), Some(json!({}))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
