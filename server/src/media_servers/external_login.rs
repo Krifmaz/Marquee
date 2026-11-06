@@ -43,12 +43,12 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Whether Jellyfin sign-in is on: the setting, and Jellyfin's address.
-fn jellyfin_on(st: &AppState) -> bool {
+pub(crate) fn jellyfin_on(st: &AppState) -> bool {
     st.settings.bool("jellyfin_sign_in") && !st.settings.str("jellyfin_url").trim().is_empty()
 }
 
 /// Whether Plex sign-in is on: the setting, and the Plex server.
-fn plex_on(st: &AppState) -> bool {
+pub(crate) fn plex_on(st: &AppState) -> bool {
     st.settings.bool("plex_sign_in") && Plex::from_settings(st).is_some()
 }
 

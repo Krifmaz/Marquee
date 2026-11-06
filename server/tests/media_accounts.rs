@@ -766,3 +766,79 @@ async fn jfa_go_users_and_invites_move_in_after_a_dry_run() {
     let (_, again, _) = call(&app, req("POST", "/api/migrate/jfa-go", true, Some(src(true, "jfa-pass")))).await;
     assert_eq!((again["added"].as_i64(), again["problems"].as_i64()), (Some(0), Some(1)), "{again}");
 }
+
+/// `req` as the person signed in with `cookie`.
+fn as_person(method: &str, path: &str, cookie: &str, body: Option<Value>) -> Request<Body> {
+    let mut r = req(method, path, false, body);
+    r.headers_mut().insert(header::COOKIE, cookie.parse().unwrap());
+    r
+}
+
+/// Signs `username` in; the session cookie.
+async fn cookie(app: &Router, username: &str, password: &str) -> String {
+    call(app, req("POST", "/api/auth/login", false, Some(json!({ "username": username, "password": password })))).await.2
+}
+
+#[tokio::test]
+async fn people_link_their_own_jellyfin_and_plex_on_seerrs_settings_page() {
+    let (app, _, f) = server("seerr-linked", false).await;
+    let mut ids = vec![];
+    for (name, email) in [("lou", "fan@example.com"), ("other", "other@example.com")] {
+        let new = json!({ "username": name, "password": format!("{name}-password"), "email": email });
+        let (_, v, _) = call(&app, req("POST", "/api/users", true, Some(new))).await;
+        ids.push(v["id"].as_i64().unwrap());
+    }
+    let (lou, other) = (ids[0], ids[1]);
+    let c = cookie(&app, "lou", "lou-password").await;
+    let c2 = cookie(&app, "other", "other-password").await;
+    let jf = |id: i64| format!("/api/v1/user/{id}/settings/linked-accounts/jellyfin");
+    let px = |id: i64| format!("/api/v1/user/{id}/settings/linked-accounts/plex");
+    f.lock().unwrap().users.push(json!({ "Id": "cc33", "Name": "loujf", "Password": "jf-pw",
+        "Policy": { "IsAdministrator": false, "IsDisabled": false, "EnableAllFolders": true } }));
+
+    // Jellyfin: only your own profile, the right password, and one account per Jellyfin user
+    let body = json!({ "username": "loujf", "password": "jf-pw" });
+    let (s, _, _) = call(&app, as_person("POST", &jf(other), &c, Some(body.clone()))).await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "not your own profile");
+    let (s, _, _) = call(&app, as_person("POST", &jf(lou), &c, Some(json!({ "username": "loujf", "password": "nope" })))).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, v, _) = call(&app, as_person("POST", &jf(lou), &c, Some(body.clone()))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+    let (s, v, _) = call(&app, as_person("POST", &jf(other), &c2, Some(body.clone()))).await;
+    assert_eq!(
+        (s, v["detail"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("The specified account is already linked to a Seerr user"))
+    );
+    let (_, v, _) = call(&app, req("GET", &format!("/api/users/{lou}/media"), true, None)).await;
+    assert!(v.to_string().contains("loujf"), "the link shows on the account: {v}");
+
+    // Plex: the plex.tv account must have the same mail address and a share of the server
+    let token = json!({ "authToken": "person-token" });
+    let (s, v, _) = call(&app, as_person("POST", &px(lou), &c, Some(token.clone()))).await;
+    assert_eq!(s, StatusCode::UNPROCESSABLE_ENTITY, "no share yet: {v}");
+    f.lock().unwrap().shares.push(json!({ "id": "9001", "email": "fan@example.com", "userID": "555", "username": "plexfan", "libs": [] }));
+    let (s, v, _) = call(&app, as_person("POST", &px(other), &c2, Some(token.clone()))).await;
+    assert_eq!(
+        (s, v["detail"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("This Plex account is registered under a different email address."))
+    );
+    let (s, v, _) = call(&app, as_person("POST", &px(lou), &c, Some(token.clone()))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+
+    // unlinking: never the owner; the account itself or a manager; the Jellyfin user and Plex share stay
+    let (s, v, _) = call(&app, req("DELETE", &jf(1), true, None)).await;
+    assert_eq!(
+        (s, v["detail"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("Cannot unlink media server accounts for the primary administrator."))
+    );
+    let (s, _, _) = call(&app, as_person("DELETE", &jf(lou), &c2, None)).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _, _) = call(&app, as_person("DELETE", &jf(lou), &c, None)).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, _, _) = call(&app, req("DELETE", &px(lou), true, None)).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert!(jf_user(&f, "loujf").is_some());
+    assert_eq!(f.lock().unwrap().shares.len(), 1);
+    let (s, v, _) = call(&app, as_person("POST", &jf(other), &c2, Some(body))).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "free again: {v}");
+}
