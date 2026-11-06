@@ -54,7 +54,7 @@ otherwise. Track: *Arr*.
 | SeriesStats / MovieStats | 🟨 | computed in `sonarr.rs` / `radarr.rs` | Port the stats queries (episode file counts, size on disk, percent) exactly |
 | Parser (release names, languages, scene numbering) | 🟨 | `parser/` (`QualityParser`, `LanguageParser`, both apps' `Parser.cs`, `ReleaseGroupParser` and `SceneChecker` ported with their upstream test cases; `quality_tv.rs`, `quality_movie.rs`, `language*.rs`, `episode.rs`, `movie.rs`, `release_group_movie.rs`, `clr_regex.rs`); `release.rs` reads movie names with Radarr's parser and series names with Sonarr's | both apps' `ParsingService` (finding the movie, series and episodes a parsed name means, scene and alternate titles) |
 | Languages (language list, ISO codes) | ✅ | `parser/` (`Language`, `IsoLanguages`) | — |
-| DataAugmentation (scene mappings, XEM, daily series) — Sonarr | ⬜ | — | Scene mapping and XEM numbering, `DailySeries` |
+| DataAugmentation (scene mappings, XEM, daily series) — Sonarr | 🟨 | `augment/` (`SceneMappingService` with Sonarr's services and TheXEM's names as providers, `DailySeriesService`; `SceneMappingServiceFixture` ported) | XEM scene numbering (`XemService` episode mappings) |
 | Qualities (definitions, sizes) | ✅ | `quality.rs` | — |
 | Profiles (quality profiles, delay profiles, release profiles) | 🟨 | `quality.rs` | Delay profiles, release profiles (Sonarr), language in profiles |
 | CustomFormats | ✅ | `trash/formats.rs` | Custom format CRUD over the API (read-only now) |
