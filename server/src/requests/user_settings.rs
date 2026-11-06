@@ -238,10 +238,20 @@ async fn set_password(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>,
     }
     let overriding = s.0.has(&[perm::MANAGE_USERS]) && id != s.0.id();
     let hash = u.s("password_hash");
-    if !overriding && !hash.is_empty() && !b.current_password.as_deref().is_some_and(|c| crate::auth::verify_password(c, &hash)) {
-        return Err(Fail(err(403, "Current password is invalid.")));
+    if !overriding && !hash.is_empty() {
+        let current = b.current_password.clone().unwrap_or_default();
+        let ok = tokio::task::spawn_blocking(move || crate::auth::verify_password(&current, &hash)).await.unwrap_or(false);
+        if !ok {
+            return Err(Fail(err(403, "Current password is invalid.")));
+        }
     }
-    st.db.execute("UPDATE users SET password_hash=? WHERE id=?", p![crate::auth::hash_password(&b.new_password), id])?;
+    let pw = b.new_password.clone();
+    let new_hash = tokio::task::spawn_blocking(move || crate::auth::hash_password(&pw)).await.unwrap_or_default();
+    st.db.execute("UPDATE users SET password_hash=? WHERE id=?", p![new_hash, id])?;
+    // the linked Jellyfin user takes the new password too
+    for e in crate::media_servers::account_sync::password_changed(&st, id, &b.new_password).await {
+        tracing::warn!("account settings: the new password didn't reach Jellyfin: {e}");
+    }
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
