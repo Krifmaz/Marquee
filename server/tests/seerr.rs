@@ -913,6 +913,59 @@ async fn request_news_reaches_each_account_by_mail_like_seerrs_email_agent() {
 }
 
 #[tokio::test]
+async fn issue_news_reaches_the_reporter_and_the_issue_managers_like_seerrs_subscribers() {
+    let (app, st) = server("mail-issues").await;
+    let sam = id_of(&app, "sam").await;
+    for name in ["ada", "bea"] {
+        let u =
+            json!({ "username": name, "password": format!("{name}-password-1"), "email": format!("{name}@example.com"), "role": "admin" });
+        assert_eq!(native(&app, "POST", "/api/users", u).await.0, StatusCode::OK);
+    }
+    let ada = id_of(&app, "ada").await;
+    let settle = || tokio::time::sleep(std::time::Duration::from_millis(300));
+    let (_, asked) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    let media_id = asked["media"]["id"].as_i64().unwrap();
+    settle().await;
+    let before = server::mail::outbox(&st).len();
+    let since =
+        |st: &server::AppState| server::mail::outbox(st).into_iter().skip(before).map(|m| (m.to, m.subject, m.text)).collect::<Vec<_>>();
+
+    // ada reports for sam: both managers hear (Seerr only leaves out the reporter), sam doesn't
+    let body = json!({ "mediaId": media_id, "issueType": 2, "message": "No sound after an hour", "userId": sam });
+    let (s, issue) = call(&app, "POST", "/issue", Some(ada), Some(body)).await;
+    assert_eq!(s, StatusCode::CREATED, "{issue}");
+    let id = issue["id"].as_i64().unwrap();
+    settle().await;
+    let got = since(&st);
+    let to: Vec<&str> = got.iter().map(|m| m.0.as_str()).collect();
+    assert_eq!(to, ["ada@example.com", "bea@example.com"]);
+    assert_eq!(got[0].1, "New problem reported – The Matrix (1999)");
+    assert!(
+        got[0].2.contains("sam reported a problem with the sound of The Matrix (1999): \u{201c}No sound after an hour\u{201d}"),
+        "{}",
+        got[0].2
+    );
+
+    // ada comments and resolves: sam hears directly, bea as a manager, ada not about what ada did
+    call(&app, "POST", &format!("/issue/{id}/comment"), Some(ada), Some(json!({ "message": "Fixed the file" }))).await;
+    call(&app, "POST", &format!("/issue/{id}/resolved"), Some(ada), None).await;
+    call(&app, "POST", &format!("/issue/{id}/resolved"), Some(ada), None).await;
+    settle().await;
+    let got: Vec<(String, String)> = since(&st).into_iter().skip(2).map(|m| (m.0, m.1)).collect();
+    let want = [
+        ("sam@example.com", "New comment on a problem – The Matrix (1999)"),
+        ("bea@example.com", "New comment on a problem – The Matrix (1999)"),
+        ("sam@example.com", "Problem resolved – The Matrix (1999)"),
+        ("bea@example.com", "Problem resolved – The Matrix (1999)"),
+    ];
+    let mut got_sorted = got.clone();
+    got_sorted.sort();
+    let mut want_sorted: Vec<(String, String)> = want.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect();
+    want_sorted.sort();
+    assert_eq!(got_sorted, want_sorted, "resolving twice tells once");
+}
+
+#[tokio::test]
 async fn anime_requests_carry_the_language_choice_and_anilist_seasons() {
     let (app, _) = server("anime").await;
     let sam = id_of(&app, "sam").await;
