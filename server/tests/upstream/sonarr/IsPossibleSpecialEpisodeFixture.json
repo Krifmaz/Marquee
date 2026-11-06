@@ -1,0 +1,23 @@
+{
+ "IsPossibleSpecialEpisode_should_be_true": [
+  [
+   "Title.the.Series.S02.Special-Inside.Chesters.Mill.HDTV.x264-BAJSKORV"
+  ],
+  [
+   "Title.the.Series.S02.Special-Inside.Chesters.Mill.720p.HDTV.x264-BAJSKORV"
+  ],
+  [
+   "Title.the.Series.S05.Special.HDTV.x264-2HD"
+  ]
+ ],
+ "IsPossibleSpecialEpisode_should_be_true_if_e00_special": [
+  [
+   "Title.the.Series.S11E00.A.Christmas.Carol.Special.720p.HDTV-FieldOfView"
+  ]
+ ],
+ "IsPossibleSpecialEpisode_should_be_false_for_Special_in_title": [
+  [
+   "Big.Special.Show.S05.HDTV.x264-2HD"
+  ]
+ ]
+}
