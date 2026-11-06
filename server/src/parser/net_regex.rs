@@ -120,6 +120,33 @@ impl NetRegex {
         self.re.replace_all(text, rep).into_owned()
     }
 
+    /// `text` with every match replaced by what `f` makes of it (.NET's `Replace` with a `MatchEvaluator`).
+    pub fn replace_all_with(&self, text: &str, f: impl Fn(&Caps<'_>) -> String) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut last = 0;
+        for c in self.captures_iter(text) {
+            let w = c.whole();
+            out.push_str(&text[last..w.start]);
+            out.push_str(&f(&c));
+            last = w.end;
+        }
+        out.push_str(&text[last..]);
+        out
+    }
+
+    /// The pieces of `text` between matches (.NET's `Regex.Split`, without captured groups).
+    pub fn split<'t>(&self, text: &'t str) -> Vec<&'t str> {
+        let mut out = Vec::new();
+        let mut last = 0;
+        for c in self.captures_iter(text) {
+            let w = c.whole();
+            out.push(&text[last..w.start]);
+            last = w.end;
+        }
+        out.push(&text[last..]);
+        out
+    }
+
     /// `text` with the first match replaced.
     pub fn replace(&self, text: &str, rep: &str) -> String {
         self.re.replace(text, rep).into_owned()

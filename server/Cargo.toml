@@ -46,6 +46,7 @@ fs2 = "0.4"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 regex = "1"
+unicode-normalization = "0.1"
 tower = { version = "0.5", features = ["util"] }
 # ---- the tracks' own dependencies (docs/TRACKS.md): each track adds lines only under its own comment ----
 # TRaSH track

@@ -1,0 +1,150 @@
+{
+ "should_normalize_series_title": [
+  [
+   "Conan",
+   "conan"
+  ],
+  [
+   "Castle (2009)",
+   "castle2009"
+  ],
+  [
+   "Parenthood.2010",
+   "parenthood2010"
+  ],
+  [
+   "Law_and_Order_SVU",
+   "lawordersvu"
+  ]
+ ],
+ "should_remove_special_characters_and_casing": [
+  [
+   "CaPitAl",
+   "capital"
+  ],
+  [
+   "peri.od",
+   "period"
+  ],
+  [
+   "this.^&%^**$%@#$!That",
+   "thisthat"
+  ],
+  [
+   "test/test",
+   "testtest"
+  ],
+  [
+   "90210",
+   "90210"
+  ],
+  [
+   "24",
+   "24"
+  ],
+  [
+   "I'm a cyborg, but that's OK",
+   "imcyborgbutthatsok"
+  ],
+  [
+   "Im a cyborg, but thats ok",
+   "imcyborgbutthatsok"
+  ],
+  [
+   "Test: Something à Deux",
+   "testsomethingdeux"
+  ],
+  [
+   "Parler à",
+   "parlera"
+  ]
+ ],
+ "should_remove_common_words_from_middle_of_title": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_common_words_from_end_of_title": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_common_words_in_the_middle_of_word": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "a"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ],
+ "should_not_remove_from_the_beginning_of_the_title": [
+  [
+   "The Office",
+   "theoffice"
+  ],
+  [
+   "The Tonight Show With Jay Leno",
+   "thetonightshowwithjayleno"
+  ],
+  [
+   "The.Daily.Show",
+   "thedailyshow"
+  ]
+ ],
+ "should_not_clean_word_from_beginning_of_string": [
+  [
+   "the"
+  ],
+  [
+   "and"
+  ],
+  [
+   "or"
+  ],
+  [
+   "a"
+  ],
+  [
+   "an"
+  ],
+  [
+   "of"
+  ]
+ ]
+}
