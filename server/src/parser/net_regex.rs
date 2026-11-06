@@ -13,7 +13,10 @@
 //!   `(?<!a)(?<!b)` and `(?<=a|b)` becomes `(?:(?<=a)|(?<=b))`, which mean the same.
 //! - **A look-behind of varying length** (`(?<!WEB[-_. ]?)`, `(?<!\d+)`): a last piece that may be left out
 //!   (`x?`) gives two alternatives, with and without it, which are then split as above; a first piece that repeats
-//!   (`x+`, `x*`) is read once or left out, since text that ends in `x+…` also ends in `x…`.
+//!   (`x+`, `x*`) is read once or left out, since text that ends in `x+…` also ends in `x…`. What is still of
+//!   varying length after that (`(?<!(19|20)\d{2}.*?)`) `fancy-regex` reads itself; it answers wrongly when such
+//!   a look-behind has a `\b` or look-around after its start, so those are refused (a test compiles every
+//!   upstream expression).
 //!
 //! .NET also keeps every repetition of a group (`Group.Captures`); `fancy-regex` keeps the last. The parsers that
 //! need the repetitions read them again from the text the group covered.
@@ -50,7 +53,7 @@ pub struct NetRegex {
 #[derive(Debug)]
 pub struct Caps<'t> {
     /// the groups as `fancy-regex` answers them
-    caps: fancy_regex::Captures<'t>,
+    caps: fancy_regex::Captures<'t, str>,
     /// the upstream group names (see [`NetRegex`])
     aliases: Arc<HashMap<String, Vec<String>>>,
 }
@@ -85,6 +88,7 @@ impl NetRegex {
         let mut p = if opts.ignore_whitespace { strip_whitespace(pattern) } else { pattern.to_string() };
         p = escape_class_brackets(&p);
         p = split_lookbehinds(&p);
+        check_lookbehinds(&p)?;
         let (p, aliases) = rename_groups(&p);
         let full = if opts.ignore_case { format!("(?i){p}") } else { p };
         let re = fancy_regex::RegexBuilder::new(&full).backtrack_limit(10_000_000).build().map_err(|e| e.to_string())?;
@@ -349,6 +353,38 @@ fn fixed_lengths(alt: &str) -> Vec<String> {
     vec![join(&ps)]
 }
 
+/// Refuses a look-behind of varying length with an assertion after its start (see the module notes).
+fn check_lookbehinds(p: &str) -> Result<(), String> {
+    let mut i = 0;
+    let mut in_class = false;
+    while i < p.len() {
+        let c = p[i..].chars().next().expect("in bounds");
+        if c == '\\' {
+            i += 1 + p[i + 1..].chars().next().map_or(0, char::len_utf8);
+            continue;
+        }
+        if in_class {
+            in_class = c != ']';
+        } else if c == '[' {
+            in_class = true;
+        } else if p[i..].starts_with("(?<=") || p[i..].starts_with("(?<!") {
+            if let Some(close) = closing_paren(p, i + 4) {
+                let ps = pieces(&p[i + 4..close]);
+                let varies = ps.iter().any(|(a, q)| {
+                    (!q.is_empty() && !(q.starts_with('{') && !q.contains(',')))
+                        || alternatives(a.trim_start_matches(['(', '?', ':'])).len() > 1
+                });
+                let assertion = |a: &str| ["\\b", "\\B", "(?=", "(?!", "(?<=", "(?<!", "^", "$"].iter().any(|x| a.starts_with(x));
+                if varies && ps.iter().skip(1).any(|(a, _)| assertion(a)) {
+                    return Err(format!("the look-behind {} changes length and has a check inside it", &p[i..=close]));
+                }
+            }
+        }
+        i += c.len_utf8();
+    }
+    Ok(())
+}
+
 /// Rewrites look-behinds with several alternatives into one look-behind per alternative (see the module notes).
 fn split_lookbehinds(p: &str) -> String {
     let mut out = String::with_capacity(p.len());
@@ -474,6 +510,14 @@ mod tests {
         assert!(!r.is_match("2012"));
         assert_eq!(fixed_lengths(r"[ab]c?"), vec!["[ab]c".to_string(), "[ab]".to_string()]);
         assert_eq!(fixed_lengths(r"\d*x"), vec!["x".to_string()]);
+    }
+
+    #[test]
+    fn look_behinds_fancy_regex_gets_wrong_are_refused() {
+        assert!(NetRegex::try_new(r"(?<!web\b.*)-EVO", I).is_err());
+        assert!(NetRegex::try_new(r"(?<!\bweb.*)-EVO", I).is_ok());
+        let r = NetRegex::new(r"(?<!(19|20)\d{2}.*?)German", I);
+        assert!(!r.is_match("Movie.2020.German") && r.is_match("Movie.German.2020"));
     }
 
     #[test]
