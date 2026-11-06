@@ -2,12 +2,11 @@
 //! cases are Sonarr's and Radarr's own NUnit `[TestCase]`s, turned into JSON by `scripts/upstream_cases.py`; each
 //! test method checks what the upstream one checks, and every method of the fixtures must be checked here.
 //!
-//! Radarr's methods that go through `ParseMovieTitle` go through its port. Sonarr's few `Parser.ParseTitle`
-//! methods call `ParseLanguages` with the whole name until Sonarr's title parser is ported.
+//! The methods that go through `ParseTitle` (Sonarr) or `ParseMovieTitle` (Radarr) go through their ports.
 
 use serde_json::Value;
 use server::parser::language::{self, tv, Catalog, Language, MOVIE, TV};
-use server::parser::{language_movie, language_tv, movie};
+use server::parser::{episode, language_movie, language_tv, movie};
 use std::collections::BTreeMap;
 
 /// One upstream fixture: test method → its cases.
@@ -118,7 +117,22 @@ fn sonarr_language_parser_fixture() {
     run(
         "sonarr",
         &TV,
-        &|_, t| language_tv::parse_languages(t),
+        &|method, t| {
+            // as each upstream method calls it: `ParseLanguages`, or `ParseTitle` for these
+            const TITLE: &[&str] = &[
+                "should_add_original_language_to_german_release_with_dl_tag",
+                "should_not_add_original_language_to_german_release_when_title_contains_web_dl",
+                "should_add_original_language_and_english_to_german_release_with_ml_tag",
+                "should_parse_original_title_from_release_name",
+                "should_parse_english_and_ukranian",
+                "should_parse_turkish_and_ukranian",
+            ];
+            if TITLE.contains(&method) {
+                episode::parse_title(t).map(|p| p.languages).unwrap_or_default()
+            } else {
+                language_tv::parse_languages(t)
+            }
+        },
         &[
             ("should_parse_subtitle_language_unknown", Check::Subtitle(UNKNOWN)),
             ("should_parse_subtitle_language_english", Check::Subtitle(ENGLISH)),

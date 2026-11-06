@@ -1,0 +1,209 @@
+{
+ "should_parse_series_name": [
+  [
+   "Series Title - 4x05 - Title",
+   "seriestitle"
+  ],
+  [
+   "Series & Title - 4x05 - Title",
+   "seriestitle"
+  ],
+  [
+   "Bad Format",
+   "badformat"
+  ],
+  [
+   "Mad Series - Season 1 [Bluray720p]",
+   "madseries"
+  ],
+  [
+   "Mad Series - Season 1 [Bluray1080p]",
+   "madseries"
+  ],
+  [
+   "The Daily Series -",
+   "thedailyseries"
+  ],
+  [
+   "The Series Bros. (2006)",
+   "theseriesbros2006"
+  ],
+  [
+   "Series (2011)",
+   "series2011"
+  ],
+  [
+   "Series Time S02 720p HDTV x264 CRON",
+   "seriestime"
+  ],
+  [
+   "Series Title 0",
+   "seriestitle0"
+  ],
+  [
+   "Series of the Day",
+   "seriesday"
+  ],
+  [
+   "Series of the Day 2",
+   "seriesday2"
+  ],
+  [
+   "[ www.Torrenting.com ] - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "series"
+  ],
+  [
+   "www.Torrenting.com - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "series"
+  ],
+  [
+   "Series S02E09 HDTV x264-2HD [eztv]-[rarbg.com]",
+   "series"
+  ],
+  [
+   "Series.911.S01.DVDRip.DD2.0.x264-DEEP",
+   "series 911"
+  ],
+  [
+   "www.Torrenting.org - Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "series"
+  ]
+ ],
+ "should_parse_series_title_info": [
+  [
+   "Series S03E14 720p HDTV X264-DIMENSION",
+   "Series"
+  ],
+  [
+   "Series.S03E14.720p.HDTV.X264-DIMENSION",
+   "Series"
+  ],
+  [
+   "Series-S03E14-720p-HDTV-X264-DIMENSION",
+   "Series"
+  ],
+  [
+   "Series_S03E14_720p_HDTV_X264-DIMENSION",
+   "Series"
+  ],
+  [
+   "Series 2022 S03E14 720p HDTV X264-DIMENSION",
+   "Series",
+   2022
+  ],
+  [
+   "Series (2022) S03E14 720p HDTV X264-DIMENSION",
+   "Series",
+   2022
+  ],
+  [
+   "Series.2022.S03E14.720p.HDTV.X264-DIMENSION",
+   "Series",
+   2022
+  ],
+  [
+   "Series-2022-S03E14-720p-HDTV-X264-DIMENSION",
+   "Series",
+   2022
+  ],
+  [
+   "Series_2022_S03E14_720p_HDTV_X264-DIMENSION",
+   "Series",
+   2022
+  ],
+  [
+   "1234 S03E14 720p HDTV X264-DIMENSION",
+   "1234"
+  ],
+  [
+   "1234.S03E14.720p.HDTV.X264-DIMENSION",
+   "1234"
+  ],
+  [
+   "1234-S03E14-720p-HDTV-X264-DIMENSION",
+   "1234"
+  ],
+  [
+   "1234_S03E14_720p_HDTV_X264-DIMENSION",
+   "1234"
+  ],
+  [
+   "1234 2022 S03E14 720p HDTV X264-DIMENSION",
+   "1234",
+   2022
+  ],
+  [
+   "1234 (2022) S03E14 720p HDTV X264-DIMENSION",
+   "1234",
+   2022
+  ],
+  [
+   "1234.2022.S03E14.720p.HDTV.X264-DIMENSION",
+   "1234",
+   2022
+  ],
+  [
+   "1234-2022-S03E14-720p-HDTV-X264-DIMENSION",
+   "1234",
+   2022
+  ],
+  [
+   "1234_2022_S03E14_720p_HDTV_X264-DIMENSION",
+   "1234",
+   2022
+  ]
+ ],
+ "should_clean_up_invalid_path_characters": [
+  [
+   "Sonar TV - Series Title : 02 Road From Code [S04].mp4"
+  ]
+ ],
+ "should_remove_request_info_from_title": [
+  [
+   "[scnzbefnet][509103] 2.Developers.Series.S03E18.720p.HDTV.X264-DIMENSION",
+   "2 Developers Series"
+  ]
+ ],
+ "should_parse_quality_from_extension": [
+  [
+   "Series.S01E02.Chained.Title.mkv"
+  ],
+  [
+   "Show - S01E01 - Title.avi"
+  ]
+ ],
+ "should_parse_releasetitle": [
+  [
+   "Series.S01E02.Chained.Title.mkv",
+   "Series.S01E02.Chained.Title"
+  ]
+ ],
+ "should_parse_multiple_series_titles": [
+  [
+   "Босх: Спадок (S2E1) / Series: Legacy (S2E1) (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "Босх: Спадок",
+   "Series: Legacy"
+  ],
+  [
+   "Босх: Спадок / Series: Legacy / S2E1-4 of 10 (2023) WEB-DL 1080p Ukr/Eng | sub Eng",
+   "Босх: Спадок",
+   "Series: Legacy"
+  ],
+  [
+   "Босх: Спадок AKA Series: Legacy S02 1080p NF WEB-DL Dual- Audio DD+ 5.1 Atmos H.264-APEX",
+   "Босх: Спадок",
+   "Series: Legacy"
+  ],
+  [
+   "Босх.Спадок.AKA.Series.Legacy.S02.1080p.NF.WEB-DL.DUAL.DDP5.1.Atmos.H.264-APEX",
+   "Босх Спадок",
+   "Series Legacy"
+  ]
+ ],
+ "should_parse_language_after_parsing_title": [
+  [
+   "[Reza] Series in Russian - S01E08 [WEBRip 1080p HEVC AAC] (Dual Audio) (Tokidoki Bosotto Russiago de Dereru Tonari no Alya-san)",
+   "Unknown"
+  ]
+ ]
+}
