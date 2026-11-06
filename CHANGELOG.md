@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Movie release and folder names are now read by Radarr's own title parser, ported line by line: the title and its other names (AKA), year, edition, release group, anime hashes, IMDb and TMDb ids, burned-in subtitles and languages, and whether a name is a scene name; Radarr's upstream test cases run with every build. Movie searches and imports start using it in a following change.
 - The Sonarr and Radarr rules that look back over a varying stretch of a release name (such as "German, but not after the year") can now be read as upstream writes them, which the title parsers coming next need.
 - Seerr's issues (ported from Seerr 3.5.1's `routes/issue.ts` and `routes/issueComment.ts`): report a problem with a title's video, audio or subtitles, talk about it in comments, resolve it or open it again, and see how many are open. `GET /api/v1/issue/count` now counts real issues.
 - Seerr's blocklist (ported from Seerr 3.5.1's `routes/blocklist.ts`): titles nobody can ask for, added one by one or a whole movie collection at once, searchable, and taken off again. Asking for a blocklisted title answers "This media is blocklisted."

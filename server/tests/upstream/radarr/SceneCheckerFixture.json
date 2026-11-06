@@ -1,0 +1,48 @@
+{
+ "should_return_true_for_scene_names": [
+  [
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+  ]
+ ],
+ "should_return_false_for_non_scene_names": [
+  [
+   "S08E05 - Virtual In-Stanity [WEBDL-720p]"
+  ],
+  [
+   "S08E05 - Virtual In-Stanity.With.Dots [WEBDL-720p]"
+  ],
+  [
+   "Something"
+  ],
+  [
+   "86de66b7ef385e2fa56a3e41b98481ea1658bfab"
+  ],
+  [
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-"
+  ],
+  [
+   "Some.Movie.2..2013.German.DTS.DL-Pate"
+  ],
+  [
+   "2013.German.DTS.DL.BluRay.x264-Pate"
+  ]
+ ],
+ "should_correctly_parse_scene_names": [
+  [
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate_",
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+  ],
+  [
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate.mkv",
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+  ],
+  [
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate.nzb",
+   "Some.Movie.2..2013.German.DTS.DL.720p.BluRay.x264-Pate"
+  ],
+  [
+   "Some.Movie.2..2013.German.DTS.DL.【720p】.BluRay.x264-Pate.nzb",
+   "Some.Movie.2..2013.German.DTS.DL.[720p].BluRay.x264-Pate"
+  ]
+ ]
+}

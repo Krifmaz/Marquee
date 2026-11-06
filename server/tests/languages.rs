@@ -2,14 +2,12 @@
 //! cases are Sonarr's and Radarr's own NUnit `[TestCase]`s, turned into JSON by `scripts/upstream_cases.py`; each
 //! test method checks what the upstream one checks, and every method of the fixtures must be checked here.
 //!
-//! A few upstream methods go through the whole title parser (`Parser.ParseTitle`, `ParseMovieTitle`), which hands
-//! `ParseLanguages` the release name with the title and release group taken out. Until that parser is ported they
-//! call `ParseLanguages` with the whole name; the cases that need the title taken out are listed in
-//! [`NEEDS_TITLE_PARSER`] and must still fail, so the list is emptied when the title parser lands.
+//! Radarr's methods that go through `ParseMovieTitle` go through its port. Sonarr's few `Parser.ParseTitle`
+//! methods call `ParseLanguages` with the whole name until Sonarr's title parser is ported.
 
 use serde_json::Value;
-use server::parser::language::{self, movie, tv, Catalog, Language, MOVIE, TV};
-use server::parser::{language_movie, language_tv};
+use server::parser::language::{self, tv, Catalog, Language, MOVIE, TV};
+use server::parser::{language_movie, language_tv, movie};
 use std::collections::BTreeMap;
 
 /// One upstream fixture: test method → its cases.
@@ -58,14 +56,8 @@ fn by_method(cat: &Catalog, rest: &str) -> Language {
     cat.by_name(name).unwrap_or_else(|| panic!("no language named {name}"))
 }
 
-/// Radarr cases that only pass once `ParseMovieTitle` takes the movie title and release group out of the name.
-const NEEDS_TITLE_PARSER: &[(&str, &str)] = &[
-    ("should_parse_language_unknown", "The Danish Movie 2015"),
-    ("should_parse_language_unknown", "Movie.Title.2010.720p.BluRay.x264.-[YTS.LT]"),
-];
-
 /// Runs every case of a `LanguageParserFixture` and fails with all mismatches.
-fn run(app: &str, cat: &Catalog, parse: fn(&str) -> Vec<Language>, special: &[(&str, Check)]) {
+fn run(app: &str, cat: &Catalog, parse: &dyn Fn(&str, &str) -> Vec<Language>, special: &[(&str, Check)]) {
     let f = fixture(app, "LanguageParserFixture");
     let (mut fails, mut total) = (Vec::new(), 0);
     for (method, cases) in &f {
@@ -82,14 +74,14 @@ fn run(app: &str, cat: &Catalog, parse: fn(&str) -> Vec<Language>, special: &[(&
             let input = s(case, 0);
             let ok = match check {
                 Check::Contains(want) => {
-                    let got = parse(input);
+                    let got = parse(method, input);
                     want.iter().all(|l| got.contains(l))
                 }
                 Check::Exactly(want) => {
-                    let got = parse(input);
+                    let got = parse(method, input);
                     got.len() == want.len() && want.iter().all(|l| got.contains(l))
                 }
-                Check::First(want) => parse(input).first() == Some(want),
+                Check::First(want) => parse(method, input).first() == Some(want),
                 Check::Subtitle(want) => language::parse_subtitle_language(cat, input) == *want,
                 Check::TitleAndTags => {
                     let info = language::parse_subtitle_language_information(cat, input);
@@ -104,20 +96,13 @@ fn run(app: &str, cat: &Catalog, parse: fn(&str) -> Vec<Language>, special: &[(&
                     info.language == cat.unknown && info.language_tags.is_empty() && info.raw_title.is_none()
                 }
             };
-            let pending = NEEDS_TITLE_PARSER.contains(&(method.as_str(), input));
-            if pending {
-                if ok {
-                    fails.push(format!("{method}({input:?}) passes now: take it out of NEEDS_TITLE_PARSER"));
-                }
-                continue;
-            }
             if !ok {
                 let got = match check {
                     Check::Subtitle(_) => format!("{:?}", language::parse_subtitle_language(cat, input)),
                     Check::TitleAndTags | Check::FalseTitle => {
                         format!("{:?}", language::parse_subtitle_language_information(cat, input))
                     }
-                    _ => format!("{:?}", parse(input).iter().map(|l| l.name).collect::<Vec<_>>()),
+                    _ => format!("{:?}", parse(method, input).iter().map(|l| l.name).collect::<Vec<_>>()),
                 };
                 fails.push(format!("{method}({input:?}) → {got}"));
             }
@@ -133,7 +118,7 @@ fn sonarr_language_parser_fixture() {
     run(
         "sonarr",
         &TV,
-        language_tv::parse_languages,
+        &|_, t| language_tv::parse_languages(t),
         &[
             ("should_parse_subtitle_language_unknown", Check::Subtitle(UNKNOWN)),
             ("should_parse_subtitle_language_english", Check::Subtitle(ENGLISH)),
@@ -154,11 +139,33 @@ fn sonarr_language_parser_fixture() {
 
 #[test]
 fn radarr_language_parser_fixture() {
-    use movie::*;
+    use server::parser::language::movie::*;
     run(
         "radarr",
         &MOVIE,
-        language_movie::parse_languages,
+        &|method, t| {
+            // as each upstream method calls it: `ParseLanguages`, `ParseMovieTitle(t)` or `ParseMovieTitle(t, true)`
+            const DIRECT: &[&str] = &[
+                "afrikaans",
+                "albanian",
+                "georgian",
+                "kannada",
+                "malayalam",
+                "marathi",
+                "mongolian",
+                "romansh",
+                "spanish_latino",
+                "tagalog",
+                "urdu",
+            ];
+            const NOT_DIR: &[&str] = &["arabic", "bengali", "latvian", "persian", "slovak", "telugu"];
+            let lang = method.strip_prefix("should_parse_language_").unwrap_or("");
+            if DIRECT.contains(&lang) {
+                return language_movie::parse_languages(t);
+            }
+            let is_dir = method.starts_with("should_parse_language_") && !NOT_DIR.contains(&lang);
+            movie::parse_movie_title(t, is_dir).map(|p| p.languages).unwrap_or_default()
+        },
         &[
             ("should_parse_subtitle_language", Check::Subtitle(ENGLISH)),
             ("should_parse_subtitle_language_english", Check::Subtitle(ENGLISH)),
@@ -221,9 +228,9 @@ fn radarr_iso_languages_fixture() {
         "radarr",
         &MOVIE,
         &[
-            ("should_return_iso_language_for_English", Some(movie::ENGLISH)),
+            ("should_return_iso_language_for_English", Some(server::parser::language::movie::ENGLISH)),
             ("unknown_or_invalid_code_should_return_null", None),
-            ("should_return_portuguese", Some(movie::PORTUGUESE)),
+            ("should_return_portuguese", Some(server::parser::language::movie::PORTUGUESE)),
             ("should_not_return_portuguese", None),
         ],
     );
