@@ -9,9 +9,11 @@
 //! POST /api/v1/user/{id}/settings/password      change it (the current one is needed for your own)
 //! GET  /api/v1/user/{id}/settings/permissions   Seerr's permission bits (MANAGE_USERS)
 //! POST /api/v1/user/{id}/settings/permissions   set them (MANAGE_USERS; never the owner's or your own)
+//! GET  /api/v1/user/{id}/settings/notifications where the account's own news goes, and which news
+//! POST /api/v1/user/{id}/settings/notifications change that
 //! ```
 //!
-//! Linked accounts and notification settings come in their own port.
+//! Linked accounts come in their own port.
 
 use super::seerr::{limit, may_grant, perm, permissions, set_role_bits, Answer, Fail, Seerr};
 use super::{anime_prefs, set_anime_prefs, user};
@@ -37,6 +39,10 @@ pub fn migrate(db: &SqliteDb) -> anyhow::Result<()> {
             original_language TEXT,
             watchlist_sync_movies INTEGER,
             watchlist_sync_tv INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS request_user_notify (
+            user_id INTEGER PRIMARY KEY,
+            data TEXT NOT NULL DEFAULT '{}'
         );",
     )
     .map_err(|e| anyhow::anyhow!("The account settings table can't be made: {}", e.detail))
@@ -47,7 +53,8 @@ pub fn router() -> Router<AppState> {
     let v1 = Router::new()
         .route("/user/{id}/settings/main", get(main).post(set_main))
         .route("/user/{id}/settings/password", get(password).post(set_password))
-        .route("/user/{id}/settings/permissions", get(permissions_of).post(set_permissions));
+        .route("/user/{id}/settings/permissions", get(permissions_of).post(set_permissions))
+        .route("/user/{id}/settings/notifications", get(notifications).post(set_notifications));
     Router::new().nest("/api/v1", v1)
 }
 
@@ -280,4 +287,81 @@ async fn set_permissions(State(st): State<AppState>, s: Seerr, Path(id): Path<i6
     may_grant(&s, b.permissions)?;
     set_role_bits(&st.db, id, b.permissions)?;
     Ok(Json(json!({ "permissions": permissions(&user(&st.db, id)?) })).into_response())
+}
+
+/// The per-account notification fields Seerr keeps (`UserSettings`), by their names in Seerr's answer.
+const NOTIFY_FIELDS: [&str; 9] = [
+    "pgpKey",
+    "pushbulletAccessToken",
+    "pushoverApplicationToken",
+    "pushoverUserKey",
+    "pushoverSound",
+    "telegramChatId",
+    "telegramMessageThreadId",
+    "telegramSendSilently",
+    "notificationTypes",
+];
+
+/// The account's stored notification settings (`{}` when none).
+fn stored_notify(db: &SqliteDb, id: i64) -> kit_server_core::Result<Value> {
+    Ok(db
+        .one("SELECT data FROM request_user_notify WHERE user_id=?", p![id])?
+        .and_then(|r| serde_json::from_str(&r.s("data")).ok())
+        .unwrap_or_else(|| json!({})))
+}
+
+/// The account's own fields, as Seerr answers a save.
+fn own_notify(v: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    for k in NOTIFY_FIELDS {
+        out.insert(k.into(), v.get(k).cloned().unwrap_or(Value::Null));
+    }
+    out.insert("discordIds".into(), v.get("discordIds").cloned().unwrap_or_else(|| json!([])));
+    if out["notificationTypes"].is_null() {
+        out.insert("notificationTypes".into(), json!({}));
+    }
+    Value::Object(out)
+}
+
+/// `GET /user/{id}/settings/notifications` (`UserSettingsNotificationsResponse`): which ways of sending are on
+/// for the whole server, and the account's own fields. Marquee sends mail; Discord goes to one channel without
+/// mentions, and Telegram and web push aren't there yet, so those answer off.
+async fn notifications(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
+    own_or_manager(&st, &s, id)?;
+    let mut v = own_notify(&stored_notify(&st.db, id)?);
+    if let Some(o) = v.as_object_mut() {
+        o.insert("emailEnabled".into(), json!(crate::mail::enabled(&st)));
+        o.insert("discordEnabled".into(), json!(false));
+        o.insert("discordEnabledTypes".into(), json!(0));
+        o.insert("telegramEnabled".into(), json!(false));
+        o.insert("telegramBotUsername".into(), Value::Null);
+        o.insert("webPushEnabled".into(), json!(false));
+    }
+    Ok(Json(v).into_response())
+}
+
+/// `POST /user/{id}/settings/notifications`: Seerr's fields are kept as sent, empty Discord ids are dropped and
+/// the news types are merged into the ones kept; the owner's only by the owner.
+async fn set_notifications(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json(b): Json<Value>) -> Answer {
+    let u = own_or_manager(&st, &s, id)?;
+    if Role::parse(&u.s("role")) == Role::Owner && s.0.role != Role::Owner {
+        return Err(Fail(err(403, "You do not have permission to modify this user's settings.")));
+    }
+    let mut kept = stored_notify(&st.db, id)?;
+    let Some(k) = kept.as_object_mut() else { return Err(Fail(err(500, "The saved notification settings can't be read"))) };
+    for f in NOTIFY_FIELDS.iter().filter(|f| **f != "notificationTypes") {
+        k.insert((*f).into(), b.get(*f).cloned().unwrap_or(Value::Null));
+    }
+    let ids: Vec<Value> = b["discordIds"].as_array().into_iter().flatten().filter(|i| i.as_str() != Some("")).cloned().collect();
+    k.insert("discordIds".into(), json!(ids));
+    let mut types = k.get("notificationTypes").and_then(Value::as_object).cloned().unwrap_or_default();
+    for (t, v) in b["notificationTypes"].as_object().into_iter().flatten() {
+        types.insert(t.clone(), v.clone());
+    }
+    k.insert("notificationTypes".into(), Value::Object(types));
+    st.db.execute(
+        "INSERT INTO request_user_notify (user_id, data) VALUES (?,?) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data",
+        p![id, kept.to_string()],
+    )?;
+    Ok(Json(own_notify(&kept)).into_response())
 }
