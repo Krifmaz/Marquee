@@ -211,8 +211,10 @@ async fn server(name: &str) -> (Router, server::AppState) {
         std::fs::create_dir_all(dir.join("media").join(k)).unwrap();
     }
     let fake = fake_services().await;
+    let mail = name.starts_with("mail-");
     let st = server::AppState::open(&dir.join("data"), web, move |n| match n {
         "APP_API_KEY" => Some(KEY.to_string()),
+        "MARQUEE_SMTP_HOST" if mail => Some("file".into()),
         "MARQUEE_TMDB_API_KEY" => Some("tmdb-test-key".into()),
         "MARQUEE_TMDB_URL" => Some(fake.clone()),
         "MARQUEE_REQUEST_ANILIST_URL" => Some(format!("{fake}/anilist")),
@@ -868,6 +870,46 @@ async fn account_settings_follow_seerr_usersettings_ts() {
     assert_eq!(n["telegramChatId"], Value::Null, "the other fields are kept as sent, like Seerr");
     let (s, _) = call(&app, "POST", "/user/1/settings/notifications", Some(vic), Some(json!({}))).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn request_news_reaches_each_account_by_mail_like_seerrs_email_agent() {
+    let (app, st) = server("mail-news").await;
+    let sam = id_of(&app, "sam").await;
+    let ada = json!({ "username": "ada", "password": "ada-password-1", "email": "ada@example.com", "role": "admin" });
+    assert_eq!(native(&app, "POST", "/api/users", ada).await.0, StatusCode::OK);
+    let ada = id_of(&app, "ada").await;
+    let settle = || tokio::time::sleep(std::time::Duration::from_millis(300));
+    let mails = |st: &server::AppState| server::mail::outbox(st).into_iter().map(|m| (m.to, m.subject)).collect::<Vec<_>>();
+
+    // a new request goes to the people who manage requests, not to the person who asked
+    let (_, movie) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "movie", "mediaId": 603 }))).await;
+    settle().await;
+    assert_eq!(mails(&st), vec![("ada@example.com".to_string(), "New request – The Matrix (1999)".to_string())]);
+
+    // approving it tells the person who asked, with a link when Marquee's address is known
+    let mid = movie["id"].as_i64().unwrap();
+    assert_eq!(call(&app, "POST", &format!("/request/{mid}/approve"), Some(ada), None).await.0, StatusCode::OK);
+    settle().await;
+    let out = server::mail::outbox(&st);
+    assert_eq!((out.len(), out[1].to.as_str(), out[1].subject.as_str()), (2, "sam@example.com", "Request approved – The Matrix (1999)"));
+    assert!(out[1].text.starts_with("Hello sam,"), "{}", out[1].text);
+
+    // an account that turned mail news off gets none
+    let path = format!("/user/{sam}/settings/notifications");
+    call(&app, "POST", &path, Some(sam), Some(json!({ "notificationTypes": { "email": 0 } }))).await;
+    let (_, tv) = call(&app, "POST", "/request", Some(sam), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    let tid = tv["id"].as_i64().unwrap();
+    assert_eq!(call(&app, "POST", &format!("/request/{tid}/decline"), Some(ada), None).await.0, StatusCode::OK);
+    settle().await;
+    let to: Vec<String> = mails(&st).into_iter().map(|m| m.0).collect();
+    assert_eq!(to, ["ada@example.com", "sam@example.com", "ada@example.com"], "only ada heard about the series request");
+
+    // a request approved automatically tells the managers, but not the one who made it
+    let (s, _) = call(&app, "POST", "/request", Some(ada), Some(json!({ "mediaType": "tv", "mediaId": 95396, "seasons": [1] }))).await;
+    assert_eq!(s, StatusCode::CREATED);
+    settle().await;
+    assert_eq!(server::mail::outbox(&st).len(), 3, "ada made it, and the owner has no mail address");
 }
 
 #[tokio::test]

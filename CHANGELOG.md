@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Request news now reaches each account by mail, as Seerr 3.5.1's email agent does: the person who asked hears when their request is approved, declined or ready to watch, and the people who manage requests hear about new, automatically approved and failed requests. Each account picks which news it gets on its notification settings page; the mail links to the title when Marquee's address is set.
 - Linked accounts on Seerr's settings page (ported from Seerr 3.5.1's `usersettings.ts`): link your own Jellyfin user with its name and password, or your Plex account through its share of the Plex server, and unlink them again (yourself or a user manager). Linked accounts are kept in step like ones an admin links.
 - Movie and series searches and imports now read release names with the ported Radarr and Sonarr parsers: movie names by Radarr's rules, series names by Sonarr's (including anime batches such as `01-12`, which now count every episode in them, and daily air dates). A name neither can read is turned down with "Its name can't be read".
 - Series release and file names are now read by Sonarr's own title parser, ported line by line: season and episode numbers (multi-episode, split and mini-series), anime absolute numbers and specials, daily air dates and parts, season packs, extras and partial seasons, folder and file paths, release groups and anime hashes, and whether a name is a scene name; Sonarr's upstream test cases run with every build. Series searches and imports start using it in a following change.
