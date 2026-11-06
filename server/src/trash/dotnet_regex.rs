@@ -5,6 +5,8 @@
 //! - a look-behind of varying length (`(?<!\bweb[ ._-]?(dl|rip)?\b.*)`). TRaSH puts these only at the start of a
 //!   top-level alternative, so such an alternative is split: the rest is matched, and at each place it matches
 //!   the look-behind is checked by matching it, anchored at the end, against the text before that place.
+//!   `fancy-regex` 0.20 reads such look-behinds itself, but answers wrongly when a `\b` or look-around inside one
+//!   is followed by `.*`, so they are always split.
 //!
 //! Matching ignores case, like Radarr and Sonarr.
 
@@ -129,6 +131,27 @@ fn leading_lookbehinds(branch: &str) -> (Vec<(String, bool)>, String) {
     (found, rest.to_string())
 }
 
+/// Whether a look-behind's inside may match texts of different lengths (a repeat or an optional part).
+fn may_vary(body: &str) -> bool {
+    let mut chars = body.chars();
+    let (mut in_class, mut prev) = (false, ' ');
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '[' if !in_class => in_class = true,
+            ']' if in_class => in_class = false,
+            // `(?` starts a group, it doesn't make the part before it optional
+            '?' if !in_class && prev == '(' => {}
+            '*' | '+' | '?' | '{' | '|' if !in_class => return true,
+            _ => {}
+        }
+        prev = c;
+    }
+    false
+}
+
 /// `p` compiled ignoring case.
 fn compile(p: &str) -> Option<fancy_regex::Regex> {
     fancy_regex::Regex::new(&format!("(?i){p}")).ok()
@@ -138,8 +161,11 @@ impl Regex {
     /// Reads a .NET-style expression; `None` when it can't be read even split.
     pub fn new(pattern: &str) -> Option<Regex> {
         let p = escape_class_brackets(pattern);
-        if let Some(whole) = compile(&p) {
-            return Some(Regex { branches: vec![Branch { behind: vec![], rest: whole }] });
+        let varying = alternatives(&p).iter().any(|a| leading_lookbehinds(a).0.iter().any(|(b, _)| may_vary(b)));
+        if !varying {
+            if let Some(whole) = compile(&p) {
+                return Some(Regex { branches: vec![Branch { behind: vec![], rest: whole }] });
+            }
         }
         let mut branches = Vec::new();
         for alt in alternatives(&p) {
