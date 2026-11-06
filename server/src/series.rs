@@ -704,6 +704,7 @@ async fn create(State(st): State<AppState>, me: Me, Json(b): Json<NewSeries>) ->
         seasons: None,
     };
     let s = add(&st.db, &info, eps, &o)?;
+    crate::augment::series_added(&st);
     tracing::info!("{} added the series {}", me.account.username, s.info.title);
     Ok(Json(public(&s, &episodes(&st.db, s.id)?)))
 }

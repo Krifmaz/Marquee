@@ -417,6 +417,7 @@ async fn series_add(State(st): State<AppState>, Json(b): Json<Value>) -> Respons
     match series::add(&st.db, &info, eps, &o) {
         Ok(s) => {
             tracing::info!("Added the series {} through the Sonarr API", s.info.title);
+            crate::augment::series_added(&st);
             if b["addOptions"]["searchForMissingEpisodes"].as_bool() == Some(true) {
                 crate::downloads::spawn_search(&st, crate::downloads::Search::Series(s.id, None));
             }
@@ -789,6 +790,7 @@ async fn command_add(State(st): State<AppState>, Json(mut b): Json<Value>) -> Re
             }
         }
         "MissingEpisodeSearch" | "CutoffUnmetEpisodeSearch" => spawn_search(&st, Search::Missing { movies: false, tv: true }),
+        "UpdateSceneMapping" => crate::augment::spawn_update(&st),
         _ => {}
     }
     match arr::record_command(&st.db, APP, &name, &b) {

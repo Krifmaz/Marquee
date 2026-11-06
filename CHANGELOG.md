@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Series now know the scene's other names for them, as Sonarr does: Marquee fetches Sonarr's scene name list and TheXEM's names every 3 hours (and when the first series is added after a start, or on Sonarr's `UpdateSceneMapping` command), keeps them, and can tell which series and scene season a release name means, with Sonarr's rules and test cases. Sonarr's daily-show list comes along too. Matching release names to series with them comes with the ParsingService port.
 - Request news now reaches each account by mail, as Seerr 3.5.1's email agent does: the person who asked hears when their request is approved, declined or ready to watch, and the people who manage requests hear about new, automatically approved and failed requests. Each account picks which news it gets on its notification settings page; the mail links to the title when Marquee's address is set.
 - Linked accounts on Seerr's settings page (ported from Seerr 3.5.1's `usersettings.ts`): link your own Jellyfin user with its name and password, or your Plex account through its share of the Plex server, and unlink them again (yourself or a user manager). Linked accounts are kept in step like ones an admin links.
 - Movie and series searches and imports now read release names with the ported Radarr and Sonarr parsers: movie names by Radarr's rules, series names by Sonarr's (including anime batches such as `01-12`, which now count every episode in them, and daily air dates). A name neither can read is turned down with "Its name can't be read".

@@ -23,6 +23,7 @@
 pub mod anime;
 pub mod arr;
 pub mod arr_common;
+pub mod augment;
 pub mod auth;
 pub mod calendar;
 pub mod calendar_feed;
@@ -119,6 +120,10 @@ pub struct AppState {
     pub http: reqwest::Client,
     /// When the server started, RFC 3339.
     pub started: String,
+    /// The scene's other names for series (Sonarr's scene mappings), kept in memory over `scene_mappings`.
+    pub scenes: Arc<augment::scene::SceneMappingService>,
+    /// Which series are daily shows (Sonarr's services' list, kept for an hour).
+    pub daily: Arc<augment::daily::DailySeries>,
 }
 
 impl AppState {
@@ -151,6 +156,7 @@ impl AppState {
         arr::migrate(&db)?;
         custom_filters::migrate(&db)?;
         downloads::migrate(&db)?;
+        augment::migrate(&db)?;
         // the tracks' own tables (docs/TRACKS.md)
         trash::migrate(&db)?;
         requests::migrate(&db)?;
@@ -165,6 +171,7 @@ impl AppState {
         let settings =
             Store::load_with(saved, SETTINGS, env).await.map_err(|e| anyhow::anyhow!("The settings can't be read: {}", e.detail))?;
         let changelog = Arc::new(Changelog::new(&settings.str("app_name"), VERSION, changelog_gen::NOTES));
+        let scenes = Arc::new(augment::scene::SceneMappingService::new(Box::new(augment::scene::SqliteMappings(db.clone()))));
         Ok(AppState {
             db,
             reports,
@@ -181,6 +188,8 @@ impl AppState {
                 .build()
                 .map_err(|e| anyhow::anyhow!("The HTTP client can't be made: {e}"))?,
             started: movies::now_iso(),
+            scenes,
+            daily: Arc::new(augment::daily::DailySeries::new()),
         })
     }
 
@@ -282,6 +291,7 @@ pub fn app(st: AppState) -> Router {
     let spa = tower_http::set_header::SetResponseHeader::if_not_present(spa, header::VARY, HeaderValue::from_static("accept-encoding"));
     kit_server_notices::spawn_rechecks(st.clone());
     downloads::spawn(st.clone());
+    augment::spawn(st.clone());
     anime::spawn(st.clone());
     trash::spawn(st.clone());
     requests::spawn(st.clone());

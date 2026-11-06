@@ -925,7 +925,9 @@ pub async fn to_library(st: &AppState, r: &Request, m: &Media) -> Result<(i64, S
                 tags: r.tags.clone(),
                 seasons: Some(seasons),
             };
-            crate::series::add(&st.db, &info, eps, &o)?
+            let s = crate::series::add(&st.db, &info, eps, &o)?;
+            crate::augment::series_added(st);
+            s
         }
     };
     crate::downloads::spawn_search(st, crate::downloads::Search::Series(s.id, None));
