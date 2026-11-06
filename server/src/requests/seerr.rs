@@ -20,8 +20,7 @@
 //! POST   /media/{id}/{available|partial|processing|pending|unknown}   (MANAGE_REQUESTS; watch_data: admins)
 //! GET    /user  /user/{id}  /user/{id}/requests  /user/{id}/quota  /user/{id}/watch_data  /user/{id}/watchlist
 //! POST   /user (MANAGE_USERS)   PUT /user (bulk permissions)   PUT /user/{id}   DELETE /user/{id}
-//! GET    /user/{id}/settings/main (POST: limits, admins; anime language, the account itself)
-//! GET    /user/{id}/settings/permissions (POST: admins)
+//! (per-account settings are in [`super::user_settings`])
 //! GET    /search?query&page, /movie/{id}, /movie/{id}/recommendations|similar, /tv/{id},
 //!        /tv/{id}/season/{n}, /tv/{id}/recommendations|similar
 //! GET    /tv/{id}/anilist                    Marquee's own: AniList's seasons of an anime
@@ -208,8 +207,6 @@ pub fn router() -> Router<AppState> {
         .route("/user/{id}/quota", get(user_quota))
         .route("/user/{id}/watch_data", get(user_watch_data))
         .route("/user/{id}/watchlist", get(user_watchlist))
-        .route("/user/{id}/settings/main", get(main_settings).post(set_main_settings))
-        .route("/user/{id}/settings/permissions", get(permissions_of).post(set_permissions))
         .route("/search", get(search))
         .route("/movie/{id}", get(movie))
         .route("/movie/{id}/{list}", get(movie_list))
@@ -252,7 +249,7 @@ pub fn seconds_iso(t: f64) -> String {
 }
 
 /// A limit as Seerr sends it: `null` for none (0).
-fn limit(v: i64) -> Value {
+pub fn limit(v: i64) -> Value {
     if v > 0 {
         json!(v)
     } else {
@@ -1065,7 +1062,7 @@ async fn create_user(State(st): State<AppState>, s: Seerr, Json(b): Json<NewSeer
 }
 
 /// Seerr's `canMakePermissionsChange`: only the owner may hand out ADMIN.
-fn may_grant(s: &Seerr, permissions: i64) -> std::result::Result<(), Fail> {
+pub fn may_grant(s: &Seerr, permissions: i64) -> std::result::Result<(), Fail> {
     if permissions & perm::ADMIN != 0 && s.0.role != Role::Owner {
         return Err(Fail(err(403, "You do not have permission to grant this level of access")));
     }
@@ -1073,7 +1070,7 @@ fn may_grant(s: &Seerr, permissions: i64) -> std::result::Result<(), Fail> {
 }
 
 /// Gives the account `id` the role that Seerr's `permissions` map to.
-fn set_role_bits(db: &SqliteDb, id: i64, permissions: i64) -> kit_server_core::Result<()> {
+pub fn set_role_bits(db: &SqliteDb, id: i64, permissions: i64) -> kit_server_core::Result<()> {
     let (role, movies, tv) = role_of(permissions);
     db.execute(
         "UPDATE users SET role=?, auto_approve_movies=?, auto_approve_tv=? WHERE id=?",
@@ -1180,14 +1177,6 @@ async fn user_watchlist(s: Seerr, Path(id): Path<i64>, Query(q): Query<DiscoverQ
     ok(json!({ "page": q.page.unwrap_or(1), "totalPages": 0, "totalResults": 0, "results": [] }))
 }
 
-/// The account `id` when `s` is an admin or that account; 403 otherwise.
-fn account(st: &AppState, s: &Seerr, id: i64) -> std::result::Result<Row, Fail> {
-    if s.0.id() != id {
-        s.admin()?;
-    }
-    Ok(user(&st.db, id)?)
-}
-
 /// `GET /user/{id}`: anybody signed in; the mail address only for the account itself or MANAGE_USERS.
 async fn one_user(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
     let u = st.db.one("SELECT * FROM users WHERE id=?", p![id])?.ok_or_else(|| err(404, "User not found."))?;
@@ -1232,87 +1221,6 @@ async fn user_quota(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -
     ok(json!({ "movie": quota_json(&m), "tv": quota_json(&t) }))
 }
 
-/// `GET /user/{id}/settings/main`.
-async fn main_settings(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let u = account(&st, &s, id)?;
-    let (audio, subs) = super::anime_prefs(&st.db, id)?;
-    ok(json!({
-        "username": u.s("username"),
-        "email": u.s("email"),
-        "movieQuotaLimit": limit(u.i("movie_quota_limit")),
-        "movieQuotaDays": u.i("movie_quota_days"),
-        "tvQuotaLimit": limit(u.i("tv_quota_limit")),
-        "tvQuotaDays": u.i("tv_quota_days"),
-        "animeAudio": audio,
-        "animeSubtitles": subs,
-    }))
-}
-
-/// `POST /user/{id}/settings/main` body.
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MainSettings {
-    /// movies per period, null or 0 for no limit (admins)
-    pub movie_quota_limit: Option<Value>,
-    /// the movie period in days (admins)
-    pub movie_quota_days: Option<i64>,
-    /// seasons per period, null or 0 for no limit (admins)
-    pub tv_quota_limit: Option<Value>,
-    /// the TV period in days (admins)
-    pub tv_quota_days: Option<i64>,
-    /// the default anime audio (the account itself or admins)
-    pub anime_audio: Option<String>,
-    /// the default anime subtitle language
-    pub anime_subtitles: Option<String>,
-}
-
-/// `POST /user/{id}/settings/main`: limits (admins) and the default anime language choice.
-async fn set_main_settings(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json(b): Json<MainSettings>) -> Answer {
-    account(&st, &s, id)?;
-    let limits = [("movie_quota_limit", &b.movie_quota_limit), ("tv_quota_limit", &b.tv_quota_limit)];
-    let days = [("movie_quota_days", b.movie_quota_days), ("tv_quota_days", b.tv_quota_days)];
-    let changes_limits = limits.iter().any(|(_, v)| v.is_some()) || days.iter().any(|(_, v)| v.is_some());
-    if changes_limits {
-        s.admin()?;
-    }
-    for (col, v) in limits {
-        if let Some(v) = v {
-            let n = v.as_i64().unwrap_or(0);
-            if n < 0 {
-                return Err(Fail(err(400, "A request limit can't be below 0 (0 means no limit)")));
-            }
-            // the column names come from the fixed list above, never from the request
-            st.db.execute(&format!("UPDATE users SET {col}=? WHERE id=?"), p![n, id])?;
-        }
-    }
-    for (col, v) in days {
-        if let Some(d) = v {
-            if !(1..=365).contains(&d) {
-                return Err(Fail(err(400, "A request limit's period must be 1 to 365 days")));
-            }
-            st.db.execute(&format!("UPDATE users SET {col}=? WHERE id=?"), p![d, id])?;
-        }
-    }
-    if b.anime_audio.is_some() || b.anime_subtitles.is_some() {
-        let (da, ds) = super::anime_prefs(&st.db, id)?;
-        super::set_anime_prefs(&st.db, id, &b.anime_audio.unwrap_or(da), &b.anime_subtitles.unwrap_or(ds))?;
-    }
-    main_settings(State(st), s, Path(id)).await
-}
-
-/// `GET /user/{id}/settings/permissions`.
-async fn permissions_of(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>) -> Answer {
-    let u = account(&st, &s, id)?;
-    ok(json!({ "permissions": permissions(&u) }))
-}
-
-/// `POST /user/{id}/settings/permissions` body.
-#[derive(Deserialize)]
-pub struct PermissionsBody {
-    /// Seerr's permission bits
-    pub permissions: i64,
-}
-
 /// The role and auto-approve choices that Seerr's permission bits `p` stand for.
 pub fn role_of(p: i64) -> (Role, bool, bool) {
     if p & perm::ADMIN != 0 {
@@ -1324,23 +1232,6 @@ pub fn role_of(p: i64) -> (Role, bool, bool) {
         return (Role::Viewer, false, false);
     }
     (Role::Requester, both || p & perm::AUTO_APPROVE_MOVIE != 0, both || p & perm::AUTO_APPROVE_TV != 0)
-}
-
-/// `POST /user/{id}/settings/permissions`: Seerr's bits become Marquee's role and auto-approve (admins; never the
-/// owner's or your own).
-async fn set_permissions(State(st): State<AppState>, s: Seerr, Path(id): Path<i64>, Json(b): Json<PermissionsBody>) -> Answer {
-    s.admin()?;
-    let u = user(&st.db, id)?;
-    if Role::parse(&u.s("role")) == Role::Owner || id == s.0.id() {
-        return Err(Fail(err(400, "The owner's and your own permissions can't be changed here")));
-    }
-    let (role, movies, tv) = role_of(b.permissions);
-    st.db.execute(
-        "UPDATE users SET role=?, auto_approve_movies=?, auto_approve_tv=? WHERE id=?",
-        p![role.as_str(), movies as i64, tv as i64, id],
-    )?;
-    let u = user(&st.db, id)?;
-    ok(json!({ "permissions": permissions(&u) }))
 }
 
 /// The discovery query parameters.
