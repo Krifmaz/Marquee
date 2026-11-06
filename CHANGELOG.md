@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Movie and series searches and imports now read release names with the ported Radarr and Sonarr parsers: movie names by Radarr's rules, series names by Sonarr's (including anime batches such as `01-12`, which now count every episode in them, and daily air dates). A name neither can read is turned down with "Its name can't be read".
 - Series release and file names are now read by Sonarr's own title parser, ported line by line: season and episode numbers (multi-episode, split and mini-series), anime absolute numbers and specials, daily air dates and parts, season packs, extras and partial seasons, folder and file paths, release groups and anime hashes, and whether a name is a scene name; Sonarr's upstream test cases run with every build. Series searches and imports start using it in a following change.
 - Each account's notification settings from Seerr 3.5.1's `usersettings.ts` (`/api/v1/user/{id}/settings/notifications`): Discord ids, Pushbullet, Pushover and Telegram details, a PGP key and which news to get, kept for the notifications port; the page shows mail as on when Marquee can send mail.
 - Movie release and folder names are now read by Radarr's own title parser, ported line by line: the title and its other names (AKA), year, edition, release group, anime hashes, IMDb and TMDb ids, burned-in subtitles and languages, and whether a name is a scene name; Radarr's upstream test cases run with every build. Movie searches and imports start using it in a following change.

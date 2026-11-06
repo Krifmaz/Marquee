@@ -236,15 +236,14 @@ pub fn for_movie(w: &Wanted, releases: Vec<Release>, titles: &[&str], year: i64,
     let mut out: Vec<Candidate> = releases
         .into_iter()
         .map(|r| {
-            let p = release::parse(&r.title);
+            let p = release::parse_movie(&r.title);
             let (quality, rank, score, formats, mut why) = common(w, &r, &p, minutes);
-            if !names.contains(&release::clean(&p.title)) {
+            if p.title.is_empty() {
+                why.insert(0, "Its name can't be read".into());
+            } else if !names.contains(&release::clean(&p.title)) {
                 why.insert(0, format!("It's for “{}”, not this movie", p.title));
             } else if p.year > 0 && year > 0 && (p.year - year).abs() > 1 {
                 why.insert(0, format!("It's from {}, not {year}", p.year));
-            }
-            if p.season.is_some() {
-                why.insert(0, "It's a TV episode".into());
             }
             Candidate { release: r, parsed: p, quality, rank, score, formats, episode_ids: vec![], rejections: why }
         })
@@ -283,7 +282,7 @@ pub fn for_episodes(
     let mut out: Vec<Candidate> = releases
         .into_iter()
         .map(|r| {
-            let p = release::parse(&r.title);
+            let p = release::parse_series(&r.title);
             let mut why = Vec::new();
             let mut ids = Vec::new();
             let held: Vec<&WantedEpisode> = match (p.season, p.full_season, p.absolute) {
@@ -305,9 +304,12 @@ pub fn for_episodes(
                     found
                 }
                 (None, _, Some(a)) => {
-                    let found: Vec<&WantedEpisode> = wanted.iter().filter(|e| e.absolute == Some(a)).collect();
+                    let found: Vec<&WantedEpisode> =
+                        wanted.iter().filter(|e| e.absolute.is_some_and(|n| p.absolutes.contains(&n))).collect();
                     if found.is_empty() {
                         why.push(format!("Episode {a} isn't wanted"));
+                    } else if found.len() < p.absolutes.len() {
+                        why.push("It holds episodes that aren't wanted".into());
                     }
                     found
                 }
@@ -322,7 +324,9 @@ pub fn for_episodes(
             let w2 = Wanted { current, ..*w };
             let (quality, rank, score, formats, more) = common(&w2, &r, &p, minutes);
             why.extend(more);
-            if !names.contains(&release::clean(&p.title)) {
+            if p.title.is_empty() {
+                why.insert(0, "Its name can't be read".into());
+            } else if !names.contains(&release::clean(&p.title)) {
                 why.insert(0, format!("It's for “{}”, not this series", p.title));
             }
             Candidate { release: r, parsed: p, quality, rank, score, formats, episode_ids: ids, rejections: why }
